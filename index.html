@@ -5,27 +5,28 @@
 <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
-  /* Make sure the 3D background stays behind everything */
-  canvas, #threejs-bg, #three-background {
+  /* Fix header/logo appearing faded behind 3D background */
+  canvas, #three-background, #threejs-bg {
+    z-index: 0 !important;
     position: fixed !important;
     top: 0;
     left: 0;
-    z-index: 0 !important;
   }
 
-  /* Keep navbar and header above 3D background */
   #header {
     position: relative;
     z-index: 50 !important;
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(8px);
   }
 
-  /* Make sure everything inside header is visible */
   #header * {
-    opacity: 1 !important;
-    color: inherit !important;
+    position: relative;
     z-index: 51 !important;
+    opacity: 1 !important;
+  }
+
+  main {
+    position: relative;
+    z-index: 10 !important;
   }
 </style>
 
@@ -233,6 +234,7 @@
     </div>
 
     <!-- Navigation -->
+    <header id="header" class="sticky top-0 bg-white bg-opacity-95 backdrop-blur-sm shadow-lg z-50 transition-all duration-300">
     <nav class="container">
   <div class="flex justify-between items-center h-20">
 
