@@ -671,8 +671,8 @@
 
     function openCheckoutModal() {
         const subtotal = cart.reduce((sum, item) => sum + (cleanPrice(item.price) * item.quantity), 0);
-        const shipping = subtotal >= 5000 ? 0 : 100;
-        const total = subtotal + shipping;
+        const shipping = cart.length === 0 ? 0 : "On WhatsApp";
+        const total = cart.length === 0 ? 0 : subtotal;
         const itemCount = cart.reduce((total, item) => total + item.quantity, 0);
         
         checkoutDetails = { total, itemCount };
@@ -779,7 +779,7 @@
                     </div>
                     <div class="flex justify-between text-sm">
                         <span>Shipping:</span>
-                        <span class="text-gray-700 font-medium">On WhatsApp</span>
+                        <span class="text-gray-700 font-medium">${shipping}</span>
                     </div>
                     <div class="flex justify-between text-xl font-extrabold text-gray-900 pt-2 border-t border-gray-200">
                         <span>Order Total:</span>
