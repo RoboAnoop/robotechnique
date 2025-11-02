@@ -430,8 +430,10 @@
                                 <textarea id="message" name="message" rows="4" class="mt-1 block w-full px-4 py-3 border border-gray-300 rounded-lg shadow-inner focus:ring-sky-500 focus:border-sky-500 transition duration-150 resize-none"></textarea>
                             </div>
                             <div>
-                                <button type="button" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-base font-bold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition duration-150 transform hover:scale-[1.01]">
+                                <button type="button" onclick="sendMail()" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-lg text-base font-bold text-white bg-sky-600 hover:bg-sky-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 transition duration-150 transform hover:scale-[1.01]">
                                     Send Request
+                                </button>
+
                                 </button>
                             </div>
                         </div>
@@ -496,6 +498,24 @@
             minimumFractionDigits: 0,
             maximumFractionDigits: 0,
         }).format(amount);
+    }
+
+    function sendMail() {
+      const name = document.getElementById('name').value.trim();
+      const email = document.getElementById('email').value.trim();
+      const enquiry = document.getElementById("enquiry").value.trim();
+      const adminEmail = "robotechnique.team@gmail.com";
+
+      if (!name || !email || !enquiry) {
+        alert("Please fill out all fields before submitting!");
+        return;
+      }
+      const subject = `Project Enquiry from ${name}`;
+      const body = `Hello RoboTechnique Team,\n\nMy name is ${name} (${email}).\n\nProject Enquiry:\n${enquiry}\n\nThank you!`;
+
+      const mailtoLink = `mailto:${adminEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+
+      window.location.href = mailtoLink;
     }
 
     function cleanPrice(price) {
@@ -1245,5 +1265,29 @@
     </div>
    <!-- ✅ Toast Container (for stacking multiple toasts) -->
    <div id="toast-container" class="fixed top-20 right-6 z-[60] flex flex-col space-y-3"></div>
+   <script>
+    function sendMail() {
+      const name = document.getElementById("name").value.trim();
+      const email = document.getElementById("email").value.trim();
+      const message = document.getElementById("message").value.trim();
+
+      const adminEmail = "robotechnique.team@gmail.com"; // your email
+
+      if (!name || !email || !message) {
+          alert("⚠️ Please fill in all fields before sending your request.");
+          return;
+      }
+
+      const subject = `Project Enquiry from ${name}`;
+      const body = `Hello RoboTechnique Team,%0D%0A%0D%0A` +
+                   `My name is ${name} (%0D%0AEmail: ${email}).%0D%0A%0D%0A` +
+                   `Here’s my project enquiry:%0D%0A${message}%0D%0A%0D%0A` +
+                   `Thanks & regards,%0D%0A${name}`;
+
+      const mailtoLink = `mailto:${adminEmail}?subject=${encodeURIComponent(subject)}&body=${body}`;
+
+      window.location.href = mailtoLink;
+}
+</script>
 </body>
 </html>
