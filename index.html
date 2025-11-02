@@ -716,23 +716,32 @@
         `).join('');
     }
 
-    function renderCartDrawer() {
-        const subtotal = cart.reduce((sum, item) => sum + (cleanPrice(item.price) * item.quantity), 0);
-        const shipping = subtotal >= 5000 ? 0 : 100;
-        const total = subtotal + shipping;
+   function renderCartDrawer() {
+    const subtotal = cart.reduce((sum, item) => sum + (cleanPrice(item.price) * item.quantity), 0);
+    
+    // ✅ Fix shipping & total logic
+    const shipping = cart.length === 0 ? 0 : "On WhatsApp";
+    const total = cart.length === 0 ? 0 : subtotal;
 
-        let cartItemsHTML = '';
-        
-        if (cart.length === 0) {
-            cartItemsHTML = `
+    cartDrawer.innerHTML = `
+        <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+            <h2 class="text-2xl font-extrabold text-gray-800 flex items-center">
+                <i data-lucide="shopping-cart" class="w-6 h-6 mr-2 text-orange-500"></i>
+                Your Cart
+            </h2>
+            <button onclick="closeCartDrawer()" class="p-2 rounded-full hover:bg-gray-200 transition">
+                <i data-lucide="x" class="w-6 h-6 text-gray-700"></i>
+            </button>
+        </div>
+
+        <div class="flex-1 overflow-y-auto p-6 space-y-6">
+            ${cart.length === 0 ? `
                 <div class="text-center py-12 text-gray-500">
                     <i data-lucide="shopping-cart" class="w-16 h-16 mx-auto mb-4 text-gray-300"></i>
                     <p class="text-lg font-semibold">Your cart is empty.</p>
                     <p class="text-sm">Start adding some robotics components!</p>
                 </div>
-            `;
-        } else {
-            cartItemsHTML = cart.map(item => `
+            ` : cart.map(item => `
                 <div class="flex items-center space-x-4 p-4 border rounded-xl shadow-sm hover:shadow-md transition bg-white">
                     <img src="${item.imgSrc}" alt="${item.title}" class="w-16 h-16 object-cover rounded-lg flex-shrink-0 border">
                     <div class="flex-1 min-w-0">
@@ -741,107 +750,46 @@
                         <p class="text-xs text-gray-500">Unit: ${formatINR(cleanPrice(item.price))}</p>
                     </div>
                     <div class="flex items-center space-x-2 flex-shrink-0">
-                        <button onclick="updateQuantity('${item.title.replace(/'/g, "\\'")}', -1)" ${item.quantity <= 1 ? 'disabled' : ''} class="p-1 rounded-full text-gray-600 hover:bg-gray-200 ${item.quantity <= 1 ? 'opacity-50' : ''}">
+                        <button onclick="updateQuantity('${item.title}', -1)" ${item.quantity <= 1 ? 'disabled' : ''} class="p-1 rounded-full text-gray-600 hover:bg-gray-200 ${item.quantity <= 1 ? 'opacity-50' : ''}">
                             <i data-lucide="minus" class="w-4 h-4"></i>
                         </button>
                         <span class="font-medium text-lg w-6 text-center">${item.quantity}</span>
-                        <button onclick="updateQuantity('${item.title.replace(/'/g, "\\'")}', 1)" class="p-1 rounded-full text-gray-600 hover:bg-gray-200">
+                        <button onclick="updateQuantity('${item.title}', 1)" class="p-1 rounded-full text-gray-600 hover:bg-gray-200">
                             <i data-lucide="plus" class="w-4 h-4"></i>
                         </button>
-                        <button onclick="removeFromCart('${item.title.replace(/'/g, "\\'")}')" class="p-1 ml-2 rounded-full text-red-500 hover:bg-red-50 transition">
+                        <button onclick="removeFromCart('${item.title}')" class="p-1 ml-2 rounded-full text-red-500 hover:bg-red-50 transition">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </div>
-            `).join('');
-        }
+            `).join('')}
+        </div>
 
-        cartDrawer.innerHTML = `
-            <div class="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
-                <h2 class="text-2xl font-extrabold text-gray-800 flex items-center">
-                    <i data-lucide="shopping-cart" class="w-6 h-6 mr-2 text-orange-500"></i>
-                    Your Cart
-                </h2>
-                <button onclick="closeCartDrawer()" class="p-2 rounded-full hover:bg-gray-200 transition">
-                    <i data-lucide="x" class="w-6 h-6 text-gray-700"></i>
-                </button>
-            </div>
-
-            <div class="flex-1 overflow-y-auto p-6 space-y-6">
-                ${cartItemsHTML}
-            </div>
-
-            <div class="p-6 border-t border-gray-100 bg-gray-50/70 backdrop-blur-sm">
-                <div class="space-y-2 mb-4 text-gray-700">
-                    <div class="flex justify-between font-medium">
-                        <span>Subtotal:</span>
-                        <span>${formatINR(subtotal)}</span>
-                    </div>
-                    <div class="flex justify-between text-sm">
-                        <span>Shipping:</span>
-                        <span class="text-gray-700 font-medium">${shipping}</span>
-                    </div>
-                    <div class="flex justify-between text-xl font-extrabold text-gray-900 pt-2 border-t border-gray-200">
-                        <span>Order Total:</span>
-                        <span>${formatINR(total)}</span>
-                    </div>
+        <div class="p-6 border-t border-gray-100 bg-gray-50/70 backdrop-blur-sm">
+            <div class="space-y-2 mb-4 text-gray-700">
+                <div class="flex justify-between font-medium">
+                    <span>Subtotal:</span>
+                    <span>${formatINR(subtotal)}</span>
                 </div>
-                <button onclick="openCheckoutModal()" ${cart.length === 0 ? 'disabled' : ''} class="w-full flex items-center justify-center py-4 bg-sky-600 text-white rounded-xl font-bold text-lg hover:bg-sky-700 transition duration-300 shadow-xl shadow-sky-300/50 ${cart.length === 0 ? 'bg-gray-400' : ''}">
-                    Checkout & Confirm via WhatsApp
-                </button>
-            
-            </div>
-        `;
-        
-        // Re-initialize Lucide icons in the drawer
-        lucide.createIcons();
-    }
-
-    function renderCheckoutModal() {
-        checkoutModal.innerHTML = `
-            <div class="bg-white rounded-2xl w-full max-w-md m-4 shadow-3xl p-6 sm:p-8 transform transition-all duration-300 scale-100">
-                <div class="flex justify-between items-center border-b pb-4 mb-6">
-                    <h3 class="text-2xl font-extrabold text-gray-900">
-                        Enter Phone Number
-                    </h3>
-                    <button onclick="closeCheckoutModal()" class="p-2 rounded-full hover:bg-gray-100 transition">
-                        <i data-lucide="x" class="w-6 h-6 text-gray-600"></i>
-                    </button>
+                <div class="flex justify-between text-sm">
+                    <span>Shipping:</span>
+                    <span>${shipping}</span>
                 </div>
-                
-                <div class='space-y-6'>
-                    <div class="flex items-center space-x-3 p-3 bg-sky-50 border-l-4 border-sky-400 rounded-lg">
-                        <i data-lucide="phone" class='w-5 h-5 text-sky-600'></i>
-                        <p class="text-sm text-gray-700 font-medium">
-                            We use WhatsApp for final confirmation and secure payment link.
-                        </p>
-                    </div>
-
-                    <div>
-                        <label for="phone-input" class="block text-sm font-medium text-gray-700 mb-1">Mobile Number (10 digits)</label>
-                        <div class="mt-1 flex rounded-lg shadow-sm">
-                            <span class="inline-flex items-center px-3 rounded-l-lg border border-r-0 border-gray-300 bg-gray-50 text-gray-500 text-sm font-semibold">+91</span>
-                            <input
-                                type="tel"
-                                id="phone-input"
-                                maxlength="10"
-                                class="flex-1 block w-full px-4 py-3 border border-gray-300 rounded-r-lg focus:ring-orange-500 focus:border-orange-500 transition duration-150"
-                                placeholder="e.g., 9876543210"
-                            >
-                        </div>
-                        <p id="phone-error" class="mt-2 text-sm text-red-600 hidden"></p>
-                    </div>
-
-                    <button onclick="proceedToWhatsApp()" class="w-full flex items-center justify-center py-3 bg-orange-500 text-white rounded-xl font-bold hover:bg-orange-600 transition duration-300 shadow-lg shadow-orange-300/50">
-                        Confirm Details & Proceed to WhatsApp
-                        <i data-lucide="arrow-right" class='w-5 h-5 ml-2'></i>
-                    </button>
+                <div class="flex justify-between text-xl font-extrabold text-gray-900 pt-2 border-t border-gray-200">
+                    <span>Order Total:</span>
+                    <span>${formatINR(total)}</span>
                 </div>
             </div>
-        `;
-        
-        lucide.createIcons();
-    }
+            <button onclick="openCheckoutModal()" ${cart.length === 0 ? 'disabled' : ''} class="w-full flex items-center justify-center py-4 bg-sky-600 text-white rounded-xl font-bold text-lg hover:bg-sky-700 transition duration-300 shadow-xl shadow-sky-300/50 ${cart.length === 0 ? 'bg-gray-400' : ''}">
+                Checkout & Confirm via WhatsApp
+            </button>
+        </div>
+    `;
+    
+    // Re-initialize Lucide icons
+    lucide.createIcons();
+}
+
 
     function proceedToWhatsApp() {
         const phoneInput = document.getElementById('phone-input');
