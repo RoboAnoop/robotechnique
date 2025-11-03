@@ -63,10 +63,10 @@
                 initSupabase();
             }, []);
 
-            // Load data from Supabase or localStorage
+            // Load data from Supabase
             const loadInitialData = async () => {
                 try {
-                    // Try to load from Supabase first
+                    // Load products from Supabase
                     if (supabase && supabaseStatus === 'connected') {
                         const { data: productsData, error: productsError } = await supabase
                             .from('products')
@@ -76,20 +76,34 @@
                         if (!productsError) {
                             console.log('Products loaded from Supabase:', productsData);
                             
-                            // Load settings from localStorage
-                            const savedSettings = localStorage.getItem('robotechniqueSettings');
-                            const settings = savedSettings ? JSON.parse(savedSettings) : getDefaultSettings();
+                            // Load settings from Supabase
+                            const { data: settingsData, error: settingsError } = await supabase
+                                .from('settings')
+                                .select('*')
+                                .single();
                             
-                            return {
-                                products: productsData || [],
-                                settings: settings
-                            };
+                            if (!settingsError && settingsData) {
+                                console.log('Settings loaded from Supabase:', settingsData);
+                                return {
+                                    products: productsData || [],
+                                    settings: settingsData
+                                };
+                            } else {
+                                console.warn('Error loading settings from Supabase:', settingsError);
+                                // Create default settings if they don't exist
+                                const defaultSettings = getDefaultSettings();
+                                await saveSettingsToSupabase(defaultSettings);
+                                return {
+                                    products: productsData || [],
+                                    settings: defaultSettings
+                                };
+                            }
                         } else {
-                            console.warn('Error loading from Supabase:', productsError);
+                            console.warn('Error loading products from Supabase:', productsError);
                         }
                     }
 
-                    // Fallback to localStorage
+                    // Fallback to localStorage if Supabase fails
                     const savedData = localStorage.getItem('robotechniqueData');
                     if (savedData) {
                         const data = JSON.parse(savedData);
@@ -248,10 +262,27 @@
                 }
             };
 
+            // Save settings to Supabase
+            const saveSettingsToSupabase = async (settings) => {
+                if (supabase && supabaseStatus === 'connected') {
+                    const { error } = await supabase
+                        .from('settings')
+                        .upsert(settings, { onConflict: 'id' });
+                    
+                    if (error) {
+                        console.error('Error saving settings to Supabase:', error);
+                        return false;
+                    }
+                    return true;
+                }
+                return false;
+            };
+
             const saveChanges = async () => {
                 setSavedNotification(true);
                 
                 const settingsToSave = {
+                    id: 1, // Use a fixed ID for settings
                     freeShippingThreshold,
                     shippingCost,
                     whatsappNumber,
@@ -299,12 +330,16 @@
                             }
                         }
                         console.log('Products saved to Supabase');
+                        
+                        // Save settings to Supabase
+                        const settingsSaved = await saveSettingsToSupabase(settingsToSave);
+                        if (settingsSaved) {
+                            console.log('Settings saved to Supabase');
+                        }
                     }
 
-                    // Save settings to localStorage
+                    // Save to localStorage as backup
                     localStorage.setItem('robotechniqueSettings', JSON.stringify(settingsToSave));
-                    
-                    // Also save complete data to localStorage as backup
                     localStorage.setItem('robotechniqueData', JSON.stringify({
                         products,
                         settings: settingsToSave,
@@ -350,6 +385,10 @@
                             if (error) {
                                 console.error('Error clearing Supabase products:', error);
                             }
+                            
+                            // Reset settings in Supabase
+                            const defaultSettings = getDefaultSettings();
+                            await saveSettingsToSupabase({ id: 1, ...defaultSettings });
                         } catch (error) {
                             console.error('Error resetting Supabase data:', error);
                         }
