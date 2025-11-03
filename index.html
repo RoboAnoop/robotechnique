@@ -475,6 +475,7 @@
     let isAddingToCart = false;
     let checkoutDetails = { total: 0, itemCount: 0 };
     let products = []; // Will be loaded from Supabase
+    let siteSettings = {}; // Will store shipping, WhatsApp, Amazon settings
 
     // DOM Elements
     const cartDrawer = document.getElementById('cart-drawer');
@@ -503,15 +504,15 @@
     function sendMail() {
       const name = document.getElementById('name').value.trim();
       const email = document.getElementById('email').value.trim();
-      const enquiry = document.getElementById("enquiry").value.trim();
+      const message = document.getElementById('message').value.trim();
       const adminEmail = "robotechnique.team@gmail.com";
 
-      if (!name || !email || !enquiry) {
+      if (!name || !email || !message) {
         alert("Please fill out all fields before submitting!");
         return;
       }
       const subject = `Project Enquiry from ${name}`;
-      const body = `Hello RoboTechnique Team,\n\nMy name is ${name} (${email}).\n\nProject Enquiry:\n${enquiry}\n\nThank you!`;
+      const body = `Hello RoboTechnique Team,\n\nMy name is ${name} (${email}).\n\nProject Enquiry:\n${message}\n\nThank you!`;
 
       const mailtoLink = `mailto:${adminEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
@@ -561,6 +562,39 @@
         } catch (error) {
             console.error('Error loading products:', error);
             return [];
+        }
+    }
+
+    // Load settings from Supabase
+    async function loadSettingsFromSupabase() {
+        try {
+            const { data, error } = await supabase
+                .from('settings')
+                .select('*')
+                .eq('id', 1)
+                .single();
+
+            if (error) {
+                console.error('Error loading settings from Supabase:', error);
+                // Fallback to localStorage if available
+                const savedSettings = localStorage.getItem('robotechniqueSettings');
+                if (savedSettings) {
+                    return JSON.parse(savedSettings);
+                }
+                // Return default settings
+                return {
+                    freeShippingThreshold: 5000,
+                    shippingCost: 100,
+                    whatsappNumber: '919718335330',
+                    amazonLink: 'https://www.amazon.in/l/27943762031?me=A2NRJEQ5QH7HFB&tag=ShopReferral_7932ea5a-6372-4c7b-87f9-3d88e09214f4&ref=sf_seller_app_share_new_ls_srb'
+                };
+            }
+
+            console.log('Settings loaded from Supabase:', data);
+            return data || {};
+        } catch (error) {
+            console.error('Error loading settings:', error);
+            return {};
         }
     }
 
@@ -772,7 +806,7 @@
                         <span class="relative z-10">Add to Cart</span>
                         <div class="absolute inset-0 bg-green-500 transform scale-x-0 transition-transform duration-300 origin-left"></div>
                     </button>
-                    <a href="${getAmazonLink()}" target="_blank" rel="noopener noreferrer" class="w-full flex items-center justify-center py-2 text-sm bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition duration-300 border border-gray-300">
+                    <a href="${siteSettings.amazonLink || getAmazonLink()}" target="_blank" rel="noopener noreferrer" class="w-full flex items-center justify-center py-2 text-sm bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition duration-300 border border-gray-300">
                         <svg class='w-4 h-4 mr-2' viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                             <path fill-rule="evenodd" clip-rule="evenodd" d="M11.969 2.146c-1.303 0-2.492.515-3.376 1.399l-.023.023c-.883.884-1.398 2.073-1.398 3.376v11.756c0 1.25.5 2.387 1.34 3.23.844.843 1.98.023 3.23.023h4.636c1.25 0 2.386-.819 3.23-.843.843-.843 1.34-1.98 1.34-3.23V6.944c0-1.303-.515-2.492-1.398-3.376l-.023-.023c-.884-.884-2.073-1.399-3.376-1.399h-4.636zm-.322 13.91l-2.008-2.008 1.077-1.077 2.008 2.008-1.077 1.077zm3.111-3.111l-2.008-2.008 1.077-1.077 2.008 2.008-1.077 1.077z" fill="#FF9900"/>
                         </svg>
@@ -789,23 +823,13 @@
     }
 
     function getAmazonLink() {
-        // Try to get from localStorage first, then use default
-        const savedSettings = localStorage.getItem('robotechniqueSettings');
-        if (savedSettings) {
-            const settings = JSON.parse(savedSettings);
-            return settings.amazonLink || "https://www.amazon.in/l/27943762031?me=A2NRJEQ5QH7HFB&tag=ShopReferral_7932ea5a-6372-4c7b-87f9-3d88e09214f4&ref=sf_seller_app_share_new_ls_srb";
-        }
-        return "https://www.amazon.in/l/27943762031?me=A2NRJEQ5QH7HFB&tag=ShopReferral_7932ea5a-6372-4c7b-87f9-3d88e09214f4&ref=sf_seller_app_share_new_ls_srb";
+        // Return from siteSettings if available, otherwise default
+        return siteSettings.amazonLink || "https://www.amazon.in/l/27943762031?me=A2NRJEQ5QH7HFB&tag=ShopReferral_7932ea5a-6372-4c7b-87f9-3d88e09214f4&ref=sf_seller_app_share_new_ls_srb";
     }
 
     function getWhatsAppNumber() {
-        // Try to get from localStorage first, then use default
-        const savedSettings = localStorage.getItem('robotechniqueSettings');
-        if (savedSettings) {
-            const settings = JSON.parse(savedSettings);
-            return settings.whatsappNumber || '919718335330';
-        }
-        return '919718335330';
+        // Return from siteSettings if available, otherwise default
+        return siteSettings.whatsappNumber || '919718335330';
     }
 
    function renderCartDrawer() {
@@ -1077,8 +1101,9 @@
         // Initialize Lucide icons
         lucide.createIcons();
         
-        // Load products from Supabase
+        // Load products and settings from Supabase
         products = await loadProductsFromSupabase();
+        siteSettings = await loadSettingsFromSupabase();
         
         // Render products
         renderProducts();
@@ -1281,7 +1306,7 @@
       const subject = `Project Enquiry from ${name}`;
       const body = `Hello RoboTechnique Team,%0D%0A%0D%0A` +
                    `My name is ${name} (%0D%0AEmail: ${email}).%0D%0A%0D%0A` +
-                   `Here’s my project enquiry:%0D%0A${message}%0D%0A%0D%0A` +
+                   `Here's my project enquiry:%0D%0A${message}%0D%0A%0D%0A` +
                    `Thanks & regards,%0D%0A${name}`;
 
       const mailtoLink = `mailto:${adminEmail}?subject=${encodeURIComponent(subject)}&body=${body}`;
