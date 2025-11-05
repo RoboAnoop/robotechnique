@@ -17,7 +17,7 @@
     <div id="root"></div>
     
     <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
+        const { useState, useEffect, useRef, useCallback } = React;
 
         function AdminPanel() {
             // Supabase Configuration - USING SERVICE ROLE KEY
@@ -45,8 +45,15 @@
                         const client = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
                         setSupabase(client);
                         
-                        // Test connection
-                        const { data, error } = await client.from('products').select('*').limit(1);
+                        // Test connection with timeout
+                        const timeoutPromise = new Promise((_, reject) => 
+                            setTimeout(() => reject(new Error('Connection timeout')), 10000)
+                        );
+                        
+                        const connectionPromise = client.from('products').select('*').limit(1);
+                        
+                        const { data, error } = await Promise.race([connectionPromise, timeoutPromise]);
+                        
                         if (error) {
                             console.error('Supabase connection failed:', error);
                             setSupabaseStatus('error');
@@ -66,8 +73,37 @@
                 initSupabase();
             }, []);
 
+            const getDefaultSettings = useCallback(() => ({
+                freeShippingThreshold: 5000,
+                shippingCost: 100,
+                whatsappNumber: '919718335330',
+                amazonLink: 'https://www.amazon.in/l/27943762031?me=A2NRJEQ5QH7HFB&tag=ShopReferral_7932ea5a-6372-4c7b-87f9-3d88e09214f4&ref=sf_seller_app_share_new_ls_srb'
+            }), []);
+
+            // Save settings to Supabase
+            const saveSettingsToSupabase = useCallback(async (settings) => {
+                if (supabase && supabaseStatus === 'connected') {
+                    try {
+                        const { error } = await supabase
+                            .from('settings')
+                            .upsert({ id: 1, ...settings }, { onConflict: 'id' });
+                        
+                        if (error) {
+                            console.error('Error saving settings:', error);
+                            setDebugInfo('Settings save error: ' + error.message);
+                            return false;
+                        }
+                        return true;
+                    } catch (error) {
+                        console.error('Exception saving settings:', error);
+                        return false;
+                    }
+                }
+                return false;
+            }, [supabase, supabaseStatus]);
+
             // Load data from Supabase
-            const loadInitialData = async () => {
+            const loadInitialData = useCallback(async () => {
                 try {
                     // Load products from Supabase
                     if (supabase && supabaseStatus === 'connected') {
@@ -89,6 +125,7 @@
                             .eq('id', 1)
                             .single();
 
+                        // PGRST116 is "not found" error code
                         if (settingsError && settingsError.code !== 'PGRST116') {
                             console.warn('Error loading settings:', settingsError);
                             // Create default settings if they don't exist
@@ -110,11 +147,16 @@
                     // Fallback to localStorage
                     const savedData = localStorage.getItem('robotechniqueData');
                     if (savedData) {
-                        const data = JSON.parse(savedData);
-                        return {
-                            products: data.products || [],
-                            settings: data.settings || getDefaultSettings()
-                        };
+                        try {
+                            const data = JSON.parse(savedData);
+                            return {
+                                products: data.products || [],
+                                settings: data.settings || getDefaultSettings()
+                            };
+                        } catch (parseError) {
+                            console.error('Error parsing localStorage data:', parseError);
+                            localStorage.removeItem('robotechniqueData');
+                        }
                     }
                 } catch (error) {
                     console.error('Error loading data:', error);
@@ -125,14 +167,7 @@
                     products: [],
                     settings: getDefaultSettings()
                 };
-            };
-
-            const getDefaultSettings = () => ({
-                freeShippingThreshold: 5000,
-                shippingCost: 100,
-                whatsappNumber: '919718335330',
-                amazonLink: 'https://www.amazon.in/l/27943762031?me=A2NRJEQ5QH7HFB&tag=ShopReferral_7932ea5a-6372-4c7b-87f9-3d88e09214f4&ref=sf_seller_app_share_new_ls_srb'
-            });
+            }, [supabase, supabaseStatus, getDefaultSettings, saveSettingsToSupabase]);
 
             const [products, setProducts] = useState([]);
             const [freeShippingThreshold, setFreeShippingThreshold] = useState(5000);
@@ -144,47 +179,78 @@
             const [savedNotification, setSavedNotification] = useState(false);
             const [editingProduct, setEditingProduct] = useState(null);
             const [dataLoaded, setDataLoaded] = useState(false);
+            const [isSaving, setIsSaving] = useState(false);
 
             const categories = ['Actuation', 'Sensing', 'Kits', 'Control'];
             
             // Track temporary IDs to prevent duplicates
             const tempIdTracker = useRef(new Set());
+            const dataLoadRef = useRef(false);
 
             // Initialize data - FIXED: Only load data once after authentication
             useEffect(() => {
                 const initializeData = async () => {
-                    if (isAuthenticated && supabaseStatus === 'connected') {
+                    if (isAuthenticated && supabaseStatus === 'connected' && !dataLoadRef.current) {
+                        dataLoadRef.current = true;
                         setDebugInfo('Loading data with admin privileges...');
-                        const data = await loadInitialData();
-                        setProducts(data.products);
-                        setFreeShippingThreshold(data.settings.freeShippingThreshold);
-                        setShippingCost(data.settings.shippingCost);
-                        setWhatsappNumber(data.settings.whatsappNumber);
-                        setAmazonLink(data.settings.amazonLink);
-                        setDataLoaded(true);
-                        setDebugInfo(`✅ Loaded ${data.products.length} products with full admin access`);
+                        try {
+                            const data = await loadInitialData();
+                            setProducts(data.products || []);
+                            setFreeShippingThreshold(data.settings.freeShippingThreshold || 5000);
+                            setShippingCost(data.settings.shippingCost || 100);
+                            setWhatsappNumber(data.settings.whatsappNumber || '919718335330');
+                            setAmazonLink(data.settings.amazonLink || getDefaultSettings().amazonLink);
+                            setDataLoaded(true);
+                            setDebugInfo(`✅ Loaded ${data.products?.length || 0} products with full admin access`);
+                        } catch (error) {
+                            console.error('Error initializing data:', error);
+                            setDebugInfo('Failed to load data: ' + error.message);
+                        }
                     }
                 };
 
                 initializeData();
-            }, [isAuthenticated, supabaseStatus]);
+
+                return () => {
+                    // Cleanup if needed
+                };
+            }, [isAuthenticated, supabaseStatus, loadInitialData, getDefaultSettings]);
 
             // Initialize Lucide icons - FIXED: Re-initialize after dynamic content changes
             useEffect(() => {
                 const initializeIcons = () => {
-                    if (window.lucide) {
-                        window.lucide.createIcons();
+                    if (window.lucide && typeof window.lucide.createIcons === 'function') {
+                        try {
+                            window.lucide.createIcons();
+                        } catch (iconError) {
+                            console.warn('Error initializing Lucide icons:', iconError);
+                        }
                     }
                 };
                 
                 initializeIcons();
                 
                 // Re-initialize icons when content changes
-                const observer = new MutationObserver(initializeIcons);
-                observer.observe(document.getElementById('root'), {
-                    childList: true,
-                    subtree: true
+                const observer = new MutationObserver((mutations) => {
+                    let shouldReinitialize = false;
+                    for (const mutation of mutations) {
+                        if (mutation.type === 'childList' && mutation.addedNodes.length > 0) {
+                            shouldReinitialize = true;
+                            break;
+                        }
+                    }
+                    if (shouldReinitialize) {
+                        setTimeout(initializeIcons, 100);
+                    }
                 });
+                
+                const rootElement = document.getElementById('root');
+                if (rootElement) {
+                    observer.observe(rootElement, {
+                        childList: true,
+                        subtree: true
+                    });
+                }
                 
                 return () => observer.disconnect();
             }, []);
@@ -203,6 +269,7 @@
                     setIsAuthenticated(true);
                     sessionStorage.setItem('adminAuth', 'true');
                     setLoginError('');
+                    setPassword(''); // Clear password after successful login
                 } else {
                     setLoginError('Incorrect password. Please try again.');
                     setPassword('');
@@ -214,7 +281,9 @@
                 sessionStorage.removeItem('adminAuth');
                 setPassword('');
                 setDataLoaded(false);
+                dataLoadRef.current = false;
                 setDebugInfo('Logged out successfully');
+                setEditingProduct(null); // Clear editing state
             };
 
             const formatINR = (amount) => {
@@ -229,13 +298,35 @@
             const handleImageUpload = (productId, event) => {
                 const file = event.target.files[0];
                 if (file) {
+                    // Validate file type
+                    if (!file.type.startsWith('image/')) {
+                        alert('Please select an image file');
+                        return;
+                    }
+                    
+                    // Validate file size (max 5MB)
+                    if (file.size > 5 * 1024 * 1024) {
+                        alert('Image size should be less than 5MB');
+                        return;
+                    }
+                    
                     const reader = new FileReader();
+                    reader.onloadstart = () => {
+                        setDebugInfo('Uploading image...');
+                    };
                     reader.onloadend = () => {
                         setProducts(products.map(p => 
                             p.id === productId ? { ...p, image: reader.result } : p
                         ));
+                        setDebugInfo('Image uploaded successfully');
+                    };
+                    reader.onerror = () => {
+                        setDebugInfo('Error uploading image');
                     };
                     reader.readAsDataURL(file);
+                    
+                    // Reset file input
+                    event.target.value = '';
                 }
             };
 
@@ -246,7 +337,7 @@
             };
 
             const addNewProduct = () => {
-                const tempId = `temp-${Date.now()}`;
+                const tempId = `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
                 tempIdTracker.current.add(tempId);
                 
                 const newProduct = {
@@ -257,14 +348,16 @@
                     description: 'Product description goes here...',
                     image: 'https://placehold.co/400x300/eeeeee/333333?text=New+Product',
                     amazon_link: '',
-                    flipkart_link: ''
+                    flipkart_link: '',
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString()
                 };
                 setProducts([...products, newProduct]);
                 setEditingProduct(newProduct.id);
             };
 
             const deleteProduct = async (id) => {
-                if (window.confirm('Are you sure you want to delete this product?')) {
+                if (window.confirm('Are you sure you want to delete this product? This action cannot be undone.')) {
                     // Skip if it's a temporary product
                     if (id.toString().startsWith('temp-')) {
                         setProducts(products.filter(p => p.id !== id));
@@ -275,13 +368,19 @@
 
                     // Delete from Supabase
                     if (supabase && supabaseStatus === 'connected') {
-                        const { error } = await supabase
-                            .from('products')
-                            .delete()
-                            .eq('id', id);
-                        
-                        if (error) {
-                            console.error('Error deleting product:', error);
+                        try {
+                            const { error } = await supabase
+                                .from('products')
+                                .delete()
+                                .eq('id', id);
+                            
+                            if (error) {
+                                console.error('Error deleting product:', error);
+                                alert('Error deleting product: ' + error.message);
+                                return;
+                            }
+                        } catch (error) {
+                            console.error('Exception deleting product:', error);
                             alert('Error deleting product: ' + error.message);
                             return;
                         }
@@ -294,130 +393,177 @@
                 }
             };
 
-            // Save settings to Supabase
-            const saveSettingsToSupabase = async (settings) => {
-                if (supabase && supabaseStatus === 'connected') {
-                    const { error } = await supabase
-                        .from('settings')
-                        .upsert({ id: 1, ...settings }, { onConflict: 'id' });
-                    
-                    if (error) {
-                        console.error('Error saving settings:', error);
-                        setDebugInfo('Settings save error: ' + error.message);
-                        return false;
-                    }
-                    return true;
-                }
-                return false;
-            };
-
             const saveChanges = async () => {
+                if (isSaving) {
+                    setDebugInfo('Save already in progress...');
+                    return;
+                }
+                
+                setIsSaving(true);
                 setSavedNotification(true);
                 setDebugInfo('Saving changes with admin privileges...');
                 
                 const settingsToSave = {
-                    freeShippingThreshold,
-                    shippingCost,
-                    whatsappNumber,
-                    amazonLink
+                    freeShippingThreshold: Math.max(0, freeShippingThreshold),
+                    shippingCost: Math.max(0, shippingCost),
+                    whatsappNumber: whatsappNumber.replace(/\D/g, ''),
+                    amazonLink: amazonLink
                 };
 
                 try {
                     let savedProducts = 0;
+                    let failedProducts = 0;
                     const updatedProducts = [...products];
+                    const productsToSave = [];
+
+                    // Validate products before saving
+                    for (const product of updatedProducts) {
+                        if (!product.title || product.title.trim() === '') {
+                            failedProducts++;
+                            setDebugInfo(`Product ${product.id} has no title - skipping`);
+                            continue;
+                        }
+                        
+                        if (product.price < 0) {
+                            failedProducts++;
+                            setDebugInfo(`Product ${product.title} has invalid price - skipping`);
+                            continue;
+                        }
+                        
+                        productsToSave.push(product);
+                    }
 
                     // Save products to Supabase - FIXED: Prevent race condition
                     if (supabase && supabaseStatus === 'connected') {
-                        for (let i = 0; i < updatedProducts.length; i++) {
-                            const product = updatedProducts[i];
+                        for (let i = 0; i < productsToSave.length; i++) {
+                            const product = productsToSave[i];
                             const productData = {
-                                title: product.title,
-                                price: product.price,
+                                title: product.title.trim(),
+                                price: Math.max(0, product.price),
                                 image: product.image,
                                 description: product.description,
-                                category: product.category || 'Actuation', // FIXED: Ensure category is always defined
+                                category: product.category || 'Actuation',
                                 amazon_link: product.amazon_link || '',
-                                flipkart_link: product.flipkart_link || ''
+                                flipkart_link: product.flipkart_link || '',
+                                updated_at: new Date().toISOString()
                             };
 
                             if (product.id.toString().startsWith('temp-') && tempIdTracker.current.has(product.id)) {
                                 // New product - insert
-                                const { data, error } = await supabase
-                                    .from('products')
-                                    .insert(productData)
-                                    .select()
-                                    .single();
-                                
-                                if (error) {
-                                    console.error('Error inserting product:', error);
-                                    setDebugInfo('Product insert error: ' + error.message);
-                                } else if (data) {
-                                    // Update local ID with the real UUID from Supabase
-                                    updatedProducts[i] = { ...data };
-                                    tempIdTracker.current.delete(product.id);
-                                    savedProducts++;
+                                try {
+                                    const { data, error } = await supabase
+                                        .from('products')
+                                        .insert({
+                                            ...productData,
+                                            created_at: new Date().toISOString()
+                                        })
+                                        .select()
+                                        .single();
+                                    
+                                    if (error) {
+                                        console.error('Error inserting product:', error);
+                                        setDebugInfo('Product insert error: ' + error.message);
+                                        failedProducts++;
+                                    } else if (data) {
+                                        // Update local ID with the real UUID from Supabase
+                                        updatedProducts[updatedProducts.findIndex(p => p.id === product.id)] = { ...data };
+                                        tempIdTracker.current.delete(product.id);
+                                        savedProducts++;
+                                    }
+                                } catch (error) {
+                                    console.error('Exception inserting product:', error);
+                                    failedProducts++;
                                 }
                             } else if (!product.id.toString().startsWith('temp-')) {
                                 // Existing product - update
-                                const { error } = await supabase
-                                    .from('products')
-                                    .update(productData)
-                                    .eq('id', product.id);
-                                
-                                if (error) {
-                                    console.error('Error updating product:', error);
-                                    setDebugInfo('Product update error: ' + error.message);
-                                } else {
-                                    savedProducts++;
+                                try {
+                                    const { error } = await supabase
+                                        .from('products')
+                                        .update(productData)
+                                        .eq('id', product.id);
+                                    
+                                    if (error) {
+                                        console.error('Error updating product:', error);
+                                        setDebugInfo('Product update error: ' + error.message);
+                                        failedProducts++;
+                                    } else {
+                                        savedProducts++;
+                                    }
+                                } catch (error) {
+                                    console.error('Exception updating product:', error);
+                                    failedProducts++;
                                 }
                             }
                         }
 
                         // Update state with cleaned products (no temp IDs)
-                        setProducts(updatedProducts.filter(p => !p.id.toString().startsWith('temp-') || !tempIdTracker.current.has(p.id)));
+                        const finalProducts = updatedProducts.filter(p => !p.id.toString().startsWith('temp-') || !tempIdTracker.current.has(p.id));
+                        setProducts(finalProducts);
 
                         // Save settings to Supabase
-                        await saveSettingsToSupabase(settingsToSave);
+                        const settingsSaved = await saveSettingsToSupabase(settingsToSave);
                         
-                        setDebugInfo(`✅ Successfully saved ${savedProducts} products and settings to database!`);
+                        if (settingsSaved) {
+                            setDebugInfo(`✅ Successfully saved ${savedProducts} products and settings to database!${failedProducts > 0 ? ` (${failedProducts} failed)` : ''}`);
+                        } else {
+                            setDebugInfo(`⚠️ Saved ${savedProducts} products but failed to save settings${failedProducts > 0 ? ` (${failedProducts} products failed)` : ''}`);
+                        }
+                    } else {
+                        setDebugInfo('❌ Cannot save - database not connected');
                     }
 
                     // Always save to localStorage as backup
-                    localStorage.setItem('robotechniqueSettings', JSON.stringify(settingsToSave));
-                    localStorage.setItem('robotechniqueData', JSON.stringify({
-                        products: updatedProducts.filter(p => !p.id.toString().startsWith('temp-') || !tempIdTracker.current.has(p.id)),
-                        settings: settingsToSave,
-                        lastUpdated: new Date().toISOString()
-                    }));
+                    try {
+                        localStorage.setItem('robotechniqueSettings', JSON.stringify(settingsToSave));
+                        localStorage.setItem('robotechniqueData', JSON.stringify({
+                            products: updatedProducts.filter(p => !p.id.toString().startsWith('temp-') || !tempIdTracker.current.has(p.id)),
+                            settings: settingsToSave,
+                            lastUpdated: new Date().toISOString()
+                        }));
+                    } catch (storageError) {
+                        console.error('Error saving to localStorage:', storageError);
+                        setDebugInfo('Warning: Could not save to localStorage');
+                    }
                     
                 } catch (error) {
                     console.error('Error saving data:', error);
                     setDebugInfo('Save error: ' + error.message);
+                } finally {
+                    setIsSaving(false);
+                    setTimeout(() => setSavedNotification(false), 3000);
                 }
-                
-                setTimeout(() => setSavedNotification(false), 3000);
             };
 
             const exportData = () => {
-                const dataStr = JSON.stringify({
-                    products,
-                    settings: {
-                        freeShippingThreshold,
-                        shippingCost,
-                        whatsappNumber,
-                        amazonLink
-                    }
-                }, null, 2);
-                const dataBlob = new Blob([dataStr], { type: 'application/json' });
-                const url = URL.createObjectURL(dataBlob);
-                const link = document.createElement('a');
-                link.href = url;
-                link.download = 'robotechnique-data.json';
-                link.click();
+                try {
+                    const dataStr = JSON.stringify({
+                        products: products.filter(p => !p.id.toString().startsWith('temp-')),
+                        settings: {
+                            freeShippingThreshold,
+                            shippingCost,
+                            whatsappNumber,
+                            amazonLink
+                        },
+                        exportedAt: new Date().toISOString()
+                    }, null, 2);
+                    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+                    const url = URL.createObjectURL(dataBlob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = `robotechnique-data-${new Date().toISOString().split('T')[0]}.json`;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                    setDebugInfo('Data exported successfully');
+                } catch (error) {
+                    console.error('Error exporting data:', error);
+                    setDebugInfo('Error exporting data: ' + error.message);
+                }
             };
 
             const resetToDefaults = async () => {
-                if (window.confirm('Are you sure you want to reset all data to defaults? This cannot be undone.')) {
+                if (window.confirm('Are you sure you want to reset all data to defaults? This will delete all products and cannot be undone.')) {
                     // Clear products from Supabase
                     if (supabase && supabaseStatus === 'connected') {
                         try {
@@ -446,6 +592,7 @@
                     setShippingCost(defaultSettings.shippingCost);
                     setWhatsappNumber(defaultSettings.whatsappNumber);
                     setAmazonLink(defaultSettings.amazonLink);
+                    setEditingProduct(null);
                     
                     // Clear localStorage
                     localStorage.removeItem('robotechniqueData');
@@ -453,15 +600,18 @@
                     
                     setDebugInfo('Data reset to defaults');
                     
-                    // FIXED: Reload data after reset
-                    setTimeout(() => {
-                        loadInitialData().then(data => {
+                    // Reload data after reset
+                    setTimeout(async () => {
+                        try {
+                            const data = await loadInitialData();
                             setProducts(data.products);
                             setFreeShippingThreshold(data.settings.freeShippingThreshold);
                             setShippingCost(data.settings.shippingCost);
                             setWhatsappNumber(data.settings.whatsappNumber);
                             setAmazonLink(data.settings.amazonLink);
-                        });
+                        } catch (error) {
+                            console.error('Error reloading data after reset:', error);
+                        }
                     }, 500);
                 }
             };
@@ -490,7 +640,7 @@
                     className: "flex items-center gap-2 text-red-600 text-sm"
                 },
                     React.createElement('i', { 'data-lucide': 'alert-circle', className: "w-4 h-4" }),
-                    "Database Offline"
+                    "Database Offline - Using local storage"
                 );
             };
 
@@ -499,7 +649,7 @@
                 if (!debugInfo) return null;
                 
                 return React.createElement('div', {
-                    className: "mt-2 p-3 bg-blue-50 rounded-lg text-xs font-mono text-blue-700 max-w-md border border-blue-200"
+                    className: "mt-2 p-3 bg-blue-50 rounded-lg text-xs font-mono text-blue-700 max-w-md border border-blue-200 break-words"
                 }, debugInfo);
             };
 
@@ -512,12 +662,11 @@
                        
                     // Logo + Title
                     React.createElement('div', { className: "text-center mb-8" },
-                        React.createElement('img', { 
-                           src: "logo.jpg",
-                           alt: "RoboTech Logo",
-                           className: "w-20 h-20 mx-auto mb-4 rounded-xl shadow-md object-contain"
-                        }),
-
+                        React.createElement('div', { 
+                            className: "w-20 h-20 mx-auto mb-4 rounded-xl shadow-md bg-gray-200 flex items-center justify-center"
+                        }, 
+                            React.createElement('span', { className: "text-gray-500 text-sm" }, "Logo")
+                        ),
                         React.createElement('h1', { className: "text-4xl font-extrabold text-gray-900 mb-2" },
                           'Robo',
                            React.createElement('span', { className: "text-orange-500" }, 'T'),
@@ -530,44 +679,51 @@
                         React.createElement('div', { className: "bg-white rounded-2xl shadow-2xl p-8 border-2 border-gray-100" },
                             React.createElement('h2', { className: "text-2xl font-bold text-gray-800 mb-6 text-center" }, "Secure Login"),
                             
-                            React.createElement('div', { className: "space-y-6" },
-                                React.createElement('div', null,
-                                    React.createElement('label', {
-                                        htmlFor: "password",
-                                        className: "block text-sm font-bold text-gray-700 mb-2"
-                                    }, "Admin Password"),
-                                    React.createElement('div', { className: "relative" },
-                                        React.createElement('input', {
-                                            type: showPassword ? "text" : "password",
-                                            id: "password",
-                                            value: password,
-                                            onChange: (e) => setPassword(e.target.value),
-                                            onKeyPress: (e) => e.key === 'Enter' && handleLogin(e),
-                                            className: "w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition",
-                                            placeholder: "Enter your password"
-                                        }),
-                                        React.createElement('button', {
-                                            type: "button",
-                                            onClick: () => setShowPassword(!showPassword),
-                                            className: "absolute right-3 top-3.5 text-gray-500 hover:text-gray-700"
-                                        },
-                                            showPassword ? 
-                                                React.createElement('i', { 'data-lucide': 'eye-off', className: "w-5 h-5" }) :
-                                                React.createElement('i', { 'data-lucide': 'eye', className: "w-5 h-5" })
+                            React.createElement('form', { onSubmit: handleLogin },
+                                React.createElement('div', { className: "space-y-6" },
+                                    React.createElement('div', null,
+                                        React.createElement('label', {
+                                            htmlFor: "password",
+                                            className: "block text-sm font-bold text-gray-700 mb-2"
+                                        }, "Admin Password"),
+                                        React.createElement('div', { className: "relative" },
+                                            React.createElement('input', {
+                                                type: showPassword ? "text" : "password",
+                                                id: "password",
+                                                value: password,
+                                                onChange: (e) => setPassword(e.target.value),
+                                                className: "w-full px-4 py-3 pr-12 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition",
+                                                placeholder: "Enter your password",
+                                                autoComplete: "current-password"
+                                            }),
+                                            React.createElement('button', {
+                                                type: "button",
+                                                onClick: () => setShowPassword(!showPassword),
+                                                className: "absolute right-3 top-3.5 text-gray-500 hover:text-gray-700 focus:outline-none"
+                                            },
+                                                showPassword ? 
+                                                    React.createElement('i', { 'data-lucide': 'eye-off', className: "w-5 h-5" }) :
+                                                    React.createElement('i', { 'data-lucide': 'eye', className: "w-5 h-5" })
+                                            )
                                         )
-                                    )
-                                ),
+                                    ),
 
-                                loginError && React.createElement('div', {
-                                    className: "bg-red-50 border-l-4 border-red-500 p-4 rounded"
-                                },
-                                    React.createElement('p', { className: "text-red-700 text-sm font-semibold" }, loginError)
-                                ),
+                                    loginError && React.createElement('div', {
+                                        className: "bg-red-50 border-l-4 border-red-500 p-4 rounded"
+                                    },
+                                        React.createElement('p', { className: "text-red-700 text-sm font-semibold" }, loginError)
+                                    ),
 
-                                React.createElement('button', {
-                                    onClick: handleLogin,
-                                    className: "w-full bg-sky-600 text-white py-3 rounded-lg font-bold hover:bg-sky-700 transition shadow-lg hover:shadow-xl transform hover:scale-105"
-                                }, "Access Admin Panel")
+                                    React.createElement('button', {
+                                        type: "submit",
+                                        disabled: !password.trim(),
+                                        className: `w-full py-3 rounded-lg font-bold transition shadow-lg hover:shadow-xl transform hover:scale-105 ${
+                                            password.trim() 
+                                                ? "bg-sky-600 text-white hover:bg-sky-700" 
+                                                : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                                        }`
+                                    }, "Access Admin Panel")
+                                )
                             ),
 
                             React.createElement('div', { className: "mt-6 pt-6 border-t border-gray-200" },
@@ -598,9 +754,9 @@
                 // Header
                 React.createElement('div', { className: "bg-gradient-to-r from-sky-600 to-sky-700 shadow-lg" },
                     React.createElement('div', { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8" },
-                        React.createElement('div', { className: "flex justify-between items-center py-5" },
-                            React.createElement('div', null,
-                                React.createElement('h1', { className: "text-3xl font-extrabold text-white tracking-tight" },
+                        React.createElement('div', { className: "flex justify-between items-center py-5 md:flex-row flex-col gap-4" },
+                            React.createElement('div', { className: "text-center md:text-left" },
+                                React.createElement('h1', { className: "text-2xl md:text-3xl font-extrabold text-white tracking-tight" },
                                     'Robo',
                                     React.createElement('span', { className: "text-orange-400" }, 'T'),
                                     'echnique Admin'
@@ -609,25 +765,32 @@
                                 React.createElement(DatabaseStatus),
                                 React.createElement(DebugInfo)
                             ),
-                            React.createElement('div', { className: "flex gap-3" },
+                            React.createElement('div', { className: "flex gap-2 flex-wrap justify-center" },
                                 React.createElement('button', {
                                     onClick: resetToDefaults,
-                                    className: "bg-yellow-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-600 transition font-semibold shadow-md"
+                                    className: "bg-yellow-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-yellow-600 transition font-semibold shadow-md text-sm"
                                 }, "Reset All"),
                                 React.createElement('button', {
                                     onClick: exportData,
-                                    className: "bg-white text-sky-600 px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-sky-50 transition font-semibold shadow-md"
+                                    className: "bg-white text-sky-600 px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-sky-50 transition font-semibold shadow-md text-sm"
                                 }, "Export Data"),
                                 React.createElement('button', {
                                     onClick: saveChanges,
-                                    className: "bg-orange-500 text-white px-6 py-2 rounded-lg flex items-center gap-2 hover:bg-orange-600 transition font-bold shadow-lg"
+                                    disabled: isSaving,
+                                    className: `px-4 py-2 rounded-lg flex items-center gap-2 transition font-bold shadow-lg text-sm ${
+                                        isSaving 
+                                            ? "bg-orange-400 text-white cursor-not-allowed" 
+                                            : "bg-orange-500 text-white hover:bg-orange-600"
+                                    }`
                                 },
-                                    React.createElement('i', { 'data-lucide': 'save', className: "w-4 h-4" }),
-                                    "Save All"
+                                    isSaving ? 
+                                        React.createElement('i', { 'data-lucide': 'loader', className: "w-4 h-4 animate-spin" }) :
+                                        React.createElement('i', { 'data-lucide': 'save', className: "w-4 h-4" }),
+                                    isSaving ? "Saving..." : "Save All"
                                 ),
                                 React.createElement('button', {
                                     onClick: handleLogout,
-                                    className: "bg-red-500 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-red-600 transition font-semibold shadow-md"
+                                    className: "bg-red-500 text-white px-3 py-2 rounded-lg flex items-center gap-2 hover:bg-red-600 transition font-semibold shadow-md text-sm"
                                 },
                                     React.createElement('i', { 'data-lucide': 'log-out', className: "w-4 h-4" }),
                                     "Logout"
@@ -639,25 +802,25 @@
 
                 // Save Notification
                 savedNotification && React.createElement('div', {
-                    className: "fixed top-24 right-4 bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center gap-3 animate-pulse"
+                    className: "fixed top-24 right-4 bg-green-500 text-white px-6 py-4 rounded-xl shadow-2xl z-50 flex items-center gap-3 animate-pulse max-w-sm"
                 },
-                    React.createElement('i', { 'data-lucide': 'check', className: "w-5 h-5" }),
-                    React.createElement('span', { className: "font-bold" }, "Changes saved to database!")
+                    React.createElement('i', { 'data-lucide': 'check', className: "w-5 h-5 flex-shrink-0" }),
+                    React.createElement('span', { className: "font-bold text-sm" }, debugInfo.includes('✅') ? debugInfo : "Changes saved!")
                 ),
 
                 React.createElement('div', { className: "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" },
                     // Tabs
-                    React.createElement('div', { className: "flex gap-2 mb-8 border-b-2 border-gray-200" },
+                    React.createElement('div', { className: "flex gap-2 mb-8 border-b-2 border-gray-200 overflow-x-auto" },
                         React.createElement('button', {
                             onClick: () => setActiveTab('products'),
-                            className: `pb-4 px-6 font-bold transition relative ${
+                            className: `pb-4 px-4 md:px-6 font-bold transition relative whitespace-nowrap ${
                                 activeTab === 'products'
                                     ? 'text-sky-600'
                                     : 'text-gray-500 hover:text-gray-700'
                             }`
                         },
                             React.createElement('div', { className: "flex items-center gap-2" },
-                                React.createElement('i', { 'data-lucide': 'package', className: "w-5 h-5" }),
+                                React.createElement('i', { 'data-lucide': 'package', className: "w-4 h-4 md:w-5 md:h-5" }),
                                 `Products (${products.length})`
                             ),
                             activeTab === 'products' && React.createElement('div', {
@@ -666,14 +829,14 @@
                         ),
                         React.createElement('button', {
                             onClick: () => setActiveTab('settings'),
-                            className: `pb-4 px-6 font-bold transition relative ${
+                            className: `pb-4 px-4 md:px-6 font-bold transition relative whitespace-nowrap ${
                                 activeTab === 'settings'
                                     ? 'text-sky-600'
                                     : 'text-gray-500 hover:text-gray-700'
                             }`
                         },
                             React.createElement('div', { className: "flex items-center gap-2" },
-                                React.createElement('i', { 'data-lucide': 'settings', className: "w-5 h-5" }),
+                                React.createElement('i', { 'data-lucide': 'settings', className: "w-4 h-4 md:w-5 md:h-5" }),
                                 "Site Settings"
                             ),
                             activeTab === 'settings' && React.createElement('div', {
@@ -684,41 +847,52 @@
 
                     // Products Tab
                     activeTab === 'products' && React.createElement('div', null,
-                        React.createElement('div', { className: "flex justify-between items-center mb-6" },
-                            React.createElement('h2', { className: "text-2xl font-bold text-gray-800" }, "Product Management"),
+                        React.createElement('div', { className: "flex justify-between items-center mb-6 flex-col md:flex-row gap-4" },
+                            React.createElement('h2', { className: "text-xl md:text-2xl font-bold text-gray-800" }, "Product Management"),
                             React.createElement('button', {
                                 onClick: addNewProduct,
-                                className: "bg-sky-600 text-white px-5 py-3 rounded-xl flex items-center gap-2 hover:bg-sky-700 transition font-bold shadow-lg"
+                                className: "bg-sky-600 text-white px-4 py-3 rounded-xl flex items-center gap-2 hover:bg-sky-700 transition font-bold shadow-lg w-full md:w-auto justify-center"
                             },
-                                React.createElement('i', { 'data-lucide': 'plus', className: "w-5 h-5" }),
+                                React.createElement('i', { 'data-lucide': 'plus', className: "w-4 h-4 md:w-5 md:h-5" }),
                                 "Add New Product"
                             )
                         ),
 
                         // Product Grid View
                         !editingProduct && React.createElement('div', {
-                            className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8"
+                            className: "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 md:gap-6 mb-8"
                         },
-                            products.map(product => 
+                            products.length === 0 ? 
+                                React.createElement('div', { 
+                                    className: "col-span-full text-center py-12 bg-white rounded-xl shadow-md"
+                                },
+                                    React.createElement('i', { 'data-lucide': 'package', className: "w-16 h-16 text-gray-300 mx-auto mb-4" }),
+                                    React.createElement('h3', { className: "text-lg font-semibold text-gray-500 mb-2" }, "No products yet"),
+                                    React.createElement('p', { className: "text-gray-400" }, "Click 'Add New Product' to get started")
+                                )
+                            : products.map(product => 
                                 React.createElement('div', {
                                     key: product.id,
                                     onClick: () => setEditingProduct(product.id),
-                                    className: "bg-white rounded-xl shadow-md p-4 border-2 border-gray-100 hover:border-sky-400 hover:shadow-xl transition cursor-pointer transform hover:scale-105"
+                                    className: "bg-white rounded-xl shadow-md p-4 border-2 border-gray-100 hover:border-sky-400 hover:shadow-xl transition cursor-pointer transform hover:scale-105 h-full flex flex-col"
                                 },
                                     React.createElement('img', {
                                         src: product.image,
                                         alt: product.title,
-                                        className: "w-full h-32 object-cover rounded-lg mb-3"
+                                        className: "w-full h-32 object-cover rounded-lg mb-3",
+                                        onError: (e) => {
+                                            e.target.src = 'https://placehold.co/400x300/eeeeee/333333?text=Image+Error';
+                                        }
                                     }),
                                     React.createElement('h3', {
-                                        className: "font-bold text-gray-800 text-sm mb-1 truncate"
-                                    }, product.title),
+                                        className: "font-bold text-gray-800 text-sm mb-1 truncate flex-grow"
+                                    }, product.title || 'Untitled Product'),
                                     React.createElement('span', {
                                         className: "text-xs font-semibold text-sky-600 uppercase"
                                     }, product.category || 'Uncategorized'),
                                     React.createElement('p', {
                                         className: "text-lg font-extrabold text-gray-900 mt-2"
-                                    }, formatINR(product.price)),
+                                    }, formatINR(product.price || 0)),
                                     React.createElement('div', { className: "mt-3 text-center" },
                                         React.createElement('span', {
                                             className: "text-xs text-sky-600 font-semibold"
@@ -734,15 +908,15 @@
                                 onClick: () => setEditingProduct(null),
                                 className: "mb-4 text-sky-600 hover:text-sky-700 font-semibold flex items-center gap-2"
                             },
-                                React.createElement('i', { 'data-lucide': 'x', className: "w-4 h-4" }),
+                                React.createElement('i', { 'data-lucide': 'arrow-left', className: "w-4 h-4" }),
                                 "Back to Grid View"
                             ),
                             React.createElement('div', {
-                                className: "bg-white rounded-xl shadow-lg p-6 border-2 border-sky-200"
+                                className: "bg-white rounded-xl shadow-lg p-4 md:p-6 border-2 border-sky-200"
                             },
                                 products.filter(p => p.id === editingProduct).map(product => 
                                     React.createElement(React.Fragment, { key: product.id },
-                                        React.createElement('div', { className: "grid md:grid-cols-4 gap-6" },
+                                        React.createElement('div', { className: "grid md:grid-cols-4 gap-4 md:gap-6" },
                                             // Image Section
                                             React.createElement('div', null,
                                                 React.createElement('label', {
@@ -752,14 +926,17 @@
                                                     React.createElement('img', {
                                                         src: product.image,
                                                         alt: product.title,
-                                                        className: "w-full h-40 object-cover rounded-lg border-2 border-gray-200"
+                                                        className: "w-full h-40 object-cover rounded-lg border-2 border-gray-200",
+                                                        onError: (e) => {
+                                                            e.target.src = 'https://placehold.co/400x300/eeeeee/333333?text=Image+Error';
+                                                        }
                                                     }),
                                                     React.createElement('label', {
                                                         className: "absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center rounded-lg cursor-pointer opacity-0 group-hover:opacity-100 transition"
                                                     },
                                                         React.createElement('div', { className: "text-white text-center" },
-                                                            React.createElement('i', { 'data-lucide': 'upload', className: "w-8 h-8 mx-auto mb-2" }),
-                                                            React.createElement('span', { className: "text-sm font-semibold" }, "Upload New")
+                                                            React.createElement('i', { 'data-lucide': 'upload', className: "w-6 h-6 md:w-8 md:h-8 mx-auto mb-1 md:mb-2" }),
+                                                            React.createElement('span', { className: "text-xs md:text-sm font-semibold" }, "Upload New")
                                                         ),
                                                         React.createElement('input', {
                                                             type: "file",
@@ -768,32 +945,34 @@
                                                             className: "hidden"
                                                         })
                                                     )
-                                                )
+                                                ),
+                                                React.createElement('p', { className: "text-xs text-gray-500 mt-2" }, "Click image to upload new one")
                                             ),
 
                                             // Details Section
                                             React.createElement('div', { className: "md:col-span-3" },
-                                                React.createElement('div', { className: "grid md:grid-cols-2 gap-4 mb-4" },
-                                                    React.createElement('div', null,
+                                                React.createElement('div', { className: "grid md:grid-cols-2 gap-3 md:gap-4 mb-4" },
+                                                    React.createElement('div', { className: "md:col-span-2" },
                                                         React.createElement('label', {
                                                             className: "block text-sm font-bold text-gray-700 mb-1"
-                                                        }, "Product Name"),
+                                                        }, "Product Name *"),
                                                         React.createElement('input', {
                                                             type: "text",
                                                             value: product.title,
                                                             onChange: (e) => updateProduct(product.id, 'title', e.target.value),
-                                                            className: "w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+                                                            className: "w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition",
+                                                            placeholder: "Enter product name"
                                                         })
                                                     ),
 
                                                     React.createElement('div', null,
                                                         React.createElement('label', {
                                                             className: "block text-sm font-bold text-gray-700 mb-1"
-                                                        }, "Category"),
+                                                        }, "Category *"),
                                                         React.createElement('select', {
                                                             value: product.category || 'Actuation',
                                                             onChange: (e) => updateProduct(product.id, 'category', e.target.value),
-                                                            className: "w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+                                                            className: "w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
                                                         },
                                                             categories.map(cat => 
                                                                 React.createElement('option', { key: cat, value: cat }, cat)
@@ -804,46 +983,48 @@
                                                     React.createElement('div', null,
                                                         React.createElement('label', {
                                                             className: "block text-sm font-bold text-gray-700 mb-1"
-                                                        }, "Price (₹)"),
+                                                        }, "Price (₹) *"),
                                                         React.createElement('div', { className: "relative" },
                                                             React.createElement('span', {
-                                                                className: "absolute left-3 top-2.5 text-gray-500 font-bold"
+                                                                className: "absolute left-3 top-2 text-gray-500 font-bold"
                                                             }, "₹"),
                                                             React.createElement('input', {
                                                                 type: "number",
                                                                 step: "1",
+                                                                min: "0",
                                                                 value: product.price,
-                                                                onChange: (e) => updateProduct(product.id, 'price', parseInt(e.target.value) || 0),
-                                                                className: "w-full pl-8 pr-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+                                                                onChange: (e) => updateProduct(product.id, 'price', Math.max(0, parseInt(e.target.value) || 0)),
+                                                                className: "w-full pl-8 pr-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
                                                             })
                                                         ),
                                                         React.createElement('p', {
                                                             className: "text-xs text-gray-500 mt-1"
-                                                        }, `Display: ${formatINR(product.price)}`)
+                                                        }, `Display: ${formatINR(product.price || 0)}`)
                                                     ),
 
-                                                    React.createElement('div', null,
+                                                    React.createElement('div', { className: "md:col-span-2" },
                                                         React.createElement('label', {
                                                             className: "block text-sm font-bold text-gray-700 mb-1"
                                                         }, "Image URL"),
                                                         React.createElement('input', {
-                                                            type: "text",
+                                                            type: "url",
                                                             value: product.image,
                                                             onChange: (e) => updateProduct(product.id, 'image', e.target.value),
-                                                            className: "w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm"
+                                                            className: "w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm",
+                                                            placeholder: "https://example.com/image.jpg"
                                                         })
                                                     )
                                                 ),
 
-                                                // NEW: Amazon & Flipkart Links Section
+                                                // Amazon & Flipkart Links Section
                                                 React.createElement('div', { className: "mb-4" },
                                                     React.createElement('h3', { 
                                                         className: "text-lg font-bold text-gray-800 mb-3 flex items-center gap-2"
                                                     },
-                                                        React.createElement('i', { 'data-lucide': 'shopping-bag', className: "w-5 h-5 text-sky-600" }),
+                                                        React.createElement('i', { 'data-lucide': 'shopping-bag', className: "w-4 h-4 md:w-5 md:h-5 text-sky-600" }),
                                                         "Product Links"
                                                     ),
-                                                    React.createElement('div', { className: "grid md:grid-cols-2 gap-4" },
+                                                    React.createElement('div', { className: "grid md:grid-cols-2 gap-3 md:gap-4" },
                                                         React.createElement('div', null,
                                                             React.createElement('label', {
                                                                 className: "block text-sm font-bold text-gray-700 mb-1"
@@ -853,7 +1034,7 @@
                                                                 value: product.amazon_link || '',
                                                                 onChange: (e) => updateProduct(product.id, 'amazon_link', e.target.value),
                                                                 placeholder: "https://amazon.in/dp/PRODUCT_ID",
-                                                                className: "w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm"
+                                                                className: "w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm"
                                                             })
                                                         ),
                                                         React.createElement('div', null,
@@ -865,7 +1046,7 @@
                                                                 value: product.flipkart_link || '',
                                                                 onChange: (e) => updateProduct(product.id, 'flipkart_link', e.target.value),
                                                                 placeholder: "https://flipkart.com/product/PRODUCT_ID",
-                                                                className: "w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm"
+                                                                className: "w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm"
                                                             })
                                                         )
                                                     ),
@@ -882,7 +1063,8 @@
                                                         value: product.description,
                                                         onChange: (e) => updateProduct(product.id, 'description', e.target.value),
                                                         rows: "3",
-                                                        className: "w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition resize-none"
+                                                        className: "w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition resize-none",
+                                                        placeholder: "Enter product description..."
                                                     })
                                                 ),
 
@@ -905,16 +1087,16 @@
 
                     // Settings Tab
                     activeTab === 'settings' && React.createElement('div', { className: "max-w-3xl" },
-                        React.createElement('h2', { className: "text-2xl font-bold text-gray-800 mb-6" }, "Site Settings"),
+                        React.createElement('h2', { className: "text-xl md:text-2xl font-bold text-gray-800 mb-6" }, "Site Settings"),
 
                         React.createElement('div', { className: "space-y-6" },
                             // Shipping Settings
                             React.createElement('div', {
-                                className: "bg-white rounded-xl shadow-lg p-6 border-2 border-gray-100"
+                                className: "bg-white rounded-xl shadow-lg p-4 md:p-6 border-2 border-gray-100"
                             },
                                 React.createElement('div', { className: "flex items-center gap-3 mb-4" },
-                                    React.createElement('i', { 'data-lucide': 'truck', className: "w-6 h-6 text-sky-600" }),
-                                    React.createElement('h3', { className: "text-xl font-bold text-gray-800" }, "Shipping Configuration")
+                                    React.createElement('i', { 'data-lucide': 'truck', className: "w-5 h-5 md:w-6 md:h-6 text-sky-600" }),
+                                    React.createElement('h3', { className: "text-lg md:text-xl font-bold text-gray-800" }, "Shipping Configuration")
                                 ),
 
                                 React.createElement('div', { className: "space-y-4" },
@@ -924,14 +1106,15 @@
                                         }, "Free Shipping Threshold (₹)"),
                                         React.createElement('div', { className: "relative" },
                                             React.createElement('span', {
-                                                className: "absolute left-3 top-3 text-gray-500 font-bold"
+                                                className: "absolute left-3 top-2 md:top-3 text-gray-500 font-bold"
                                             }, "₹"),
                                             React.createElement('input', {
                                                 type: "number",
                                                 step: "100",
+                                                min: "0",
                                                 value: freeShippingThreshold,
-                                                onChange: (e) => setFreeShippingThreshold(parseInt(e.target.value) || 0),
-                                                className: "w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+                                                onChange: (e) => setFreeShippingThreshold(Math.max(0, parseInt(e.target.value) || 0)),
+                                                className: "w-full pl-8 pr-3 md:pr-4 py-2 md:py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
                                             })
                                         ),
                                         React.createElement('p', {
@@ -945,14 +1128,15 @@
                                         }, "Standard Shipping Cost (₹)"),
                                         React.createElement('div', { className: "relative" },
                                             React.createElement('span', {
-                                                className: "absolute left-3 top-3 text-gray-500 font-bold"
+                                                className: "absolute left-3 top-2 md:top-3 text-gray-500 font-bold"
                                             }, "₹"),
                                             React.createElement('input', {
                                                 type: "number",
                                                 step: "10",
+                                                min: "0",
                                                 value: shippingCost,
-                                                onChange: (e) => setShippingCost(parseInt(e.target.value) || 0),
-                                                className: "w-full pl-8 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
+                                                onChange: (e) => setShippingCost(Math.max(0, parseInt(e.target.value) || 0)),
+                                                className: "w-full pl-8 pr-3 md:pr-4 py-2 md:py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition"
                                             })
                                         ),
                                         React.createElement('p', {
@@ -964,23 +1148,23 @@
 
                             // Contact Settings
                             React.createElement('div', {
-                                className: "bg-white rounded-xl shadow-lg p-6 border-2 border-gray-100"
+                                className: "bg-white rounded-xl shadow-lg p-4 md:p-6 border-2 border-gray-100"
                             },
                                 React.createElement('div', { className: "flex items-center gap-3 mb-4" },
-                                    React.createElement('i', { 'data-lucide': 'phone', className: "w-6 h-6 text-sky-600" }),
-                                    React.createElement('h3', { className: "text-xl font-bold text-gray-800" }, "WhatsApp Business Number")
+                                    React.createElement('i', { 'data-lucide': 'phone', className: "w-5 h-5 md:w-6 md:h-6 text-sky-600" }),
+                                    React.createElement('h3', { className: "text-lg md:text-xl font-bold text-gray-800" }, "WhatsApp Business Number")
                                 ),
 
                                 React.createElement('div', null,
                                     React.createElement('label', {
                                         className: "block text-sm font-bold text-gray-700 mb-2"
-                                    }, "Phone Number (with country code, no spaces)"),
+                                    }, "Phone Number (with country code, no spaces) *"),
                                     React.createElement('input', {
                                         type: "text",
                                         value: whatsappNumber,
                                         onChange: (e) => setWhatsappNumber(e.target.value.replace(/\D/g, '')),
                                         placeholder: "919718335330",
-                                        className: "w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition font-mono"
+                                        className: "w-full px-3 md:px-4 py-2 md:py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition font-mono"
                                     }),
                                     React.createElement('p', {
                                         className: "text-sm text-gray-600 mt-2"
@@ -990,11 +1174,11 @@
 
                             // Amazon Link
                             React.createElement('div', {
-                                className: "bg-white rounded-xl shadow-lg p-6 border-2 border-gray-100"
+                                className: "bg-white rounded-xl shadow-lg p-4 md:p-6 border-2 border-gray-100"
                             },
                                 React.createElement('div', { className: "flex items-center gap-3 mb-4" },
-                                    React.createElement('i', { 'data-lucide': 'link-2', className: "w-6 h-6 text-sky-600" }),
-                                    React.createElement('h3', { className: "text-xl font-bold text-gray-800" }, "Default Amazon Seller Link")
+                                    React.createElement('i', { 'data-lucide': 'link-2', className: "w-5 h-5 md:w-6 md:h-6 text-sky-600" }),
+                                    React.createElement('h3', { className: "text-lg md:text-xl font-bold text-gray-800" }, "Default Amazon Seller Link")
                                 ),
 
                                 React.createElement('div', null,
@@ -1005,7 +1189,7 @@
                                         type: "url",
                                         value: amazonLink,
                                         onChange: (e) => setAmazonLink(e.target.value),
-                                        className: "w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm"
+                                        className: "w-full px-3 md:px-4 py-2 md:py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm"
                                     }),
                                     React.createElement('p', {
                                         className: "text-sm text-gray-600 mt-2"
