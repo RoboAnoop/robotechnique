@@ -34,6 +34,48 @@
             // ADMIN PASSWORD
             const ADMIN_PASSWORD = 'RoboAnoop2025';
 
+            // Try multiple possible logo paths
+            const logoPaths = [
+                'logo.jpg',
+                './logo.jpg',
+                '/logo.jpg',
+                'images/logo.jpg',
+                './images/logo.jpg',
+                '/images/logo.jpg',
+                'assets/logo.jpg',
+                './assets/logo.jpg',
+                '/assets/logo.jpg',
+                'https://placehold.co/100x100/3B82F6/FFFFFF?text=RT+Logo'
+            ];
+
+            const [logoUrl, setLogoUrl] = useState(logoPaths[0]);
+
+            // Test logo image availability
+            useEffect(() => {
+                const testLogo = async () => {
+                    for (const path of logoPaths) {
+                        try {
+                            const img = new Image();
+                            img.onload = () => {
+                                setLogoUrl(path);
+                                return;
+                            };
+                            img.onerror = () => {
+                                // Continue to next path
+                            };
+                            img.src = path;
+                            
+                            // Wait a bit for the image to load
+                            await new Promise(resolve => setTimeout(resolve, 100));
+                        } catch (error) {
+                            console.log(`Logo path ${path} failed:`, error);
+                        }
+                    }
+                };
+                
+                testLogo();
+            }, []);
+
             // Initialize Supabase with SERVICE ROLE KEY
             useEffect(() => {
                 const initSupabase = async () => {
@@ -660,12 +702,21 @@
                 }, 
                     React.createElement('div', { className: "max-w-md w-full" },
                        
-                    // Logo + Title
+                    // Logo + Title - FIXED: Logo handling with fallback
                     React.createElement('div', { className: "text-center mb-8" },
                         React.createElement('div', { 
-                            className: "w-20 h-20 mx-auto mb-4 rounded-xl shadow-md bg-gray-200 flex items-center justify-center"
+                            className: "w-20 h-20 mx-auto mb-4 rounded-xl shadow-md overflow-hidden border-2 border-gray-200"
                         }, 
-                            React.createElement('span', { className: "text-gray-500 text-sm" }, "Logo")
+                            React.createElement('img', {
+                                src: logoUrl,
+                                alt: "RoboTechnique Logo",
+                                className: "w-full h-full object-cover",
+                                onError: (e) => {
+                                    // If logo fails to load, use fallback
+                                    e.target.src = 'https://placehold.co/100x100/3B82F6/FFFFFF?text=RT+Logo';
+                                    e.target.className = "w-full h-full object-contain p-2 bg-sky-100";
+                                }
+                            })
                         ),
                         React.createElement('h1', { className: "text-4xl font-extrabold text-gray-900 mb-2" },
                           'Robo',
