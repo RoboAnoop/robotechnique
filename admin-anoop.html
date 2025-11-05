@@ -117,18 +117,29 @@
             const saveSettingsToSupabase = useCallback(async (settings) => {
                 if (supabase && supabaseStatus === 'connected') {
                     try {
-                        const { error } = await supabase
+                        console.log('Saving settings to Supabase:', settings);
+            
+                        const { data, error } = await supabase
                             .from('settings')
-                            .upsert({ id: 1, ...settings }, { onConflict: 'id' });
-                        
+                            .upsert({ 
+                                id: 1, 
+                                freeshippingthreshold: settings.freeShippingThreshold,
+                                shippingcost: settings.shippingCost,
+                                whatsappnumber: settings.whatsappNumber,
+                                amazonlink: settings.amazonLink
+                            }, { onConflict: 'id' });
+            
                         if (error) {
                             console.error('Error saving settings:', error);
                             setDebugInfo('Settings save error: ' + error.message);
                             return false;
                         }
+            
+                        console.log('Settings saved successfully:', data);
                         return true;
                     } catch (error) {
                         console.error('Exception saving settings:', error);
+                        setDebugInfo('Settings exception: ' + error.message);
                         return false;
                     }
                 }
@@ -157,6 +168,24 @@
                             .select('*')
                             .eq('id', 1)
                             .single();
+
+                        console.log('Settings load result:', { settingsData, settingsError });
+
+                        // If settings don't exist, create them
+                        if (settingsError && settingsError.code === 'PGRST116') {
+                            console.log('No settings found, creating default settings...');
+                            const defaultSettings = getDefaultSettings();
+                            const created = await saveSettingsToSupabase(defaultSettings);
+                            if (created) {
+                                 return {
+                                     products: productsData || [],
+                                     settings: defaultSettings
+                                 };
+                            }
+                        } else if (settingsError) {
+                            console.warn('Error loading settings:', settingsError);
+                        }
+
 
                         // PGRST116 is "not found" error code
                         if (settingsError && settingsError.code !== 'PGRST116') {
@@ -380,8 +409,8 @@
                     price: 0,
                     description: 'Product description goes here...',
                     image: 'https://placehold.co/400x300/eeeeee/333333?text=New+Product',
-                    amazon_link: '',
-                    flipkart_link: '',
+                    amazonlink: '',
+                    flipkart_link: ''
                 };
                 setProducts([...products, newProduct]);
                 setEditingProduct(newProduct.id);
@@ -474,7 +503,7 @@
                                 image: product.image,
                                 description: product.description,
                                 category: product.category || 'Actuation',
-                                amazon_link: product.amazon_link || '',
+                                amazonlink: product.amazonlink || '',
                                 flipkart_link: product.flipkart_link || ''
                             };
 
@@ -1067,7 +1096,7 @@
                                                             }, "Amazon Product Link"),
                                                             React.createElement('input', {
                                                                 type: "url",
-                                                                value: product.amazon_link || '',
+                                                                value: product.amazonlink || '',
                                                                 onChange: (e) => updateProduct(product.id, 'amazon_link', e.target.value),
                                                                 placeholder: "https://amazon.in/dp/PRODUCT_ID",
                                                                 className: "w-full px-3 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition text-sm"
