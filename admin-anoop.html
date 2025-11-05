@@ -382,8 +382,6 @@
                     image: 'https://placehold.co/400x300/eeeeee/333333?text=New+Product',
                     amazon_link: '',
                     flipkart_link: '',
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
                 };
                 setProducts([...products, newProduct]);
                 setEditingProduct(newProduct.id);
@@ -477,8 +475,7 @@
                                 description: product.description,
                                 category: product.category || 'Actuation',
                                 amazon_link: product.amazon_link || '',
-                                flipkart_link: product.flipkart_link || '',
-                                updated_at: new Date().toISOString()
+                                flipkart_link: product.flipkart_link || ''
                             };
 
                             if (product.id.toString().startsWith('temp-') && tempIdTracker.current.has(product.id)) {
@@ -486,10 +483,7 @@
                                 try {
                                     const { data, error } = await supabase
                                         .from('products')
-                                        .insert({
-                                            ...productData,
-                                            created_at: new Date().toISOString()
-                                        })
+                                        .insert(productData)
                                         .select()
                                         .single();
                                     
