@@ -586,61 +586,7 @@
         <span class="font-semibold">Item added to cart!</span>
     </div>
 
-    <!-- Navigation -->
-    <header id="header" class="sticky top-0 bg-white/50 backdrop-blur-md shadow-lg z-50 transition-all duration-300">
-        <nav class="container">
-            <div class="flex justify-between items-center h-20">
-                <!-- Logo (slightly larger & moved left) -->
-                <div class="flex items-center gap-3 -ml-3">
-                    <div class="h-14 w-14 flex items-center justify-center">
-                        <img src="./logo.jpg" alt="RoboTechnique Logo" class="h-12 w-auto object-contain" onerror="this.style.display='none'">
-                    </div>
-                    <a href="#" class="text-3xl font-extrabold tracking-tight">
-                        <span class="text-gray-900">Robo</span><span class="half-color-t">T</span><span class="text-sky-500">echnique</span>
-                    </a>
-                </div>
-
-                <!-- Centered Navigation Links -->
-                <div class="flex-1 flex justify-center">
-                    <div class="hidden md:flex space-x-10">
-                        <a href="#home" class="text-gray-600 hover:text-sky-600 transition duration-150 font-medium py-1 border-b-2 border-transparent hover:border-sky-500">Home</a>
-                        <a href="#shop" class="text-gray-600 hover:text-sky-600 transition duration-150 font-medium py-1 border-b-2 border-transparent hover:border-sky-500">Shop</a>
-                        <a href="#brand" class="text-gray-600 hover:text-sky-600 transition duration-150 font-medium py-1 border-b-2 border-transparent hover:border-sky-500">Brand</a>
-                        <a href="#contact" class="text-gray-600 hover:text-sky-600 transition duration-150 font-medium py-1 border-b-2 border-transparent hover:border-sky-500">Contact</a>
-                    </div>
-                </div>
-
-                <!-- Cart & Mobile Menu -->
-                <div class="flex items-center space-x-4">
-                    <button id="cart-button" class="relative p-2 rounded-full text-gray-600 hover:text-orange-500 transition duration-200">
-                        <i data-lucide="shopping-cart" class="h-7 w-7"></i>
-                        <span id="cart-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-orange-500 rounded-full hidden">0</span>
-                    </button>
-
-                    <button id="mobile-menu-button" class="md:hidden p-2 rounded-md text-gray-600 hover:text-orange-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-orange-500">
-                        <i data-lucide="menu" class="h-6 w-6"></i>
-                    </button>
-                </div>
-            </div>
-        </nav>
-        
-        <!-- Mobile Menu -->
-        <div id="mobile-menu" class="md:hidden absolute w-full bg-white/80 backdrop-blur-md shadow-xl transition-all duration-300 h-0 opacity-0 overflow-hidden">
-            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
-                <a href="#home" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 transition duration-150">Home</a>
-                <a href="#shop" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 transition duration-150">Shop</a>
-                <a href="#brand" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 transition duration-150">Brand</a>
-                <a href="#contact" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 transition duration-150">Contact</a>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Content -->
-    <main class="relative z-10 full-page-content">
-        <!-- Hero Section -->
-        <section id="home" class="pt-24 pb-32 sm:pt-32 sm:pb-48 container text-center">
-            <div id="hero-content">
-                <!-- Skeleton will be shown initially, then replaced with real content -->
+     <!-- Skeleton will be shown initially, then replaced with real content -->
                 <div class="skeleton skeleton-hero-title"></div>
                 <div class="skeleton skeleton-hero-subtitle"></div>
                 <div class="skeleton skeleton-hero-button"></div>
@@ -704,7 +650,62 @@
                         <div class="skeleton skeleton-button-small"></div>
                     </div>
                     <div class="bg-white product-card rounded-2xl p-4 md:p-6 shadow-xl border border-gray-100">
-                        <div class="skeleton skeleton-image product-image"></div>
+             <!-- Navigation -->
+             <header id="header" class="sticky top-0 bg-white/50 backdrop-blur-md shadow-lg z-50 transition-all duration-300">
+                 <nav class="container">
+                     <div class="flex justify-between items-center h-20">
+                         <!-- Logo -->
+                         <div class="flex items-center gap-3">
+                             <div class="h-14 w-14 flex items-center justify-center">
+                                 <img src="./logo.jpg" alt="RoboTechnique Logo" class="h-12 w-auto object-contain" onerror="this.style.display='none'">
+                             </div>
+                             <a href="#" class="text-3xl font-extrabold tracking-tight">
+                                 <span class="text-gray-900">Robo</span><span class="half-color-t">T</span><span class="text-sky-500">echnique</span>
+                             </a>
+                         </div>
+
+                         <!-- Navigation Links & Cart - Grouped together -->
+                         <div class="flex items-center space-x-10">  <!-- Increased spacing between nav and cart -->
+                             <!-- Navigation Links -->
+                             <div class="hidden md:flex space-x-8">  <!-- Consistent spacing between nav items -->
+                                 <a href="#home" class="text-gray-600 hover:text-sky-600 transition duration-150 font-medium py-1 border-b-2 border-transparent hover:border-sky-500">Home</a>
+                                 <a href="#shop" class="text-gray-600 hover:text-sky-600 transition duration-150 font-medium py-1 border-b-2 border-transparent hover:border-sky-500">Shop</a>
+                                 <a href="#brand" class="text-gray-600 hover:text-sky-600 transition duration-150 font-medium py-1 border-b-2 border-transparent hover:border-sky-500">Brand</a>
+                                 <a href="#contact" class="text-gray-600 hover:text-sky-600 transition duration-150 font-medium py-1 border-b-2 border-transparent hover:border-sky-500">Contact</a>
+                             </div>
+
+                             <!-- Cart & Mobile Menu -->
+                             <div class="flex items-center space-x-4">
+                                 <button id="cart-button" class="relative p-2 rounded-full text-gray-600 hover:text-orange-500 transition duration-200">
+                                     <i data-lucide="shopping-cart" class="h-7 w-7"></i>
+                                     <span id="cart-count" class="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-orange-500 rounded-full hidden">0</span>
+                                 </button>
+
+                                 <button id="mobile-menu-button" class="md:hidden p-2 rounded-md text-gray-600 hover:text-orange-500 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-orange-500">
+                                     <i data-lucide="menu" class="h-6 w-6"></i>
+                                 </button>
+                             </div>
+                         </div>
+                     </div>
+                 </nav>
+    
+        <!-- Mobile Menu -->
+        <div id="mobile-menu" class="md:hidden absolute w-full bg-white/80 backdrop-blur-md shadow-xl transition-all duration-300 h-0 opacity-0 overflow-hidden">
+            <div class="px-2 pt-2 pb-3 space-y-1 sm:px-3">
+                <a href="#home" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 transition duration-150">Home</a>
+                <a href="#shop" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 transition duration-150">Shop</a>
+                <a href="#brand" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 transition duration-150">Brand</a>
+                <a href="#contact" class="block px-3 py-2 rounded-lg text-base font-medium text-gray-700 hover:bg-sky-50 hover:text-sky-600 transition duration-150">Contact</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="relative z-10 full-page-content">
+        <!-- Hero Section -->
+        <section id="home" class="pt-24 pb-32 sm:pt-32 sm:pb-48 container text-center">
+            <div id="hero-content">
+                          <div class="skeleton skeleton-image product-image"></div>
                         <div class="skeleton skeleton-text short mb-1"></div>
                         <div class="skeleton skeleton-text medium mb-2"></div>
                         <div class="skeleton skeleton-text long mb-4"></div>
