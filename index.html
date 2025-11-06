@@ -376,6 +376,90 @@
             border-color: #34d399;
             box-shadow: 0 10px 25px rgba(5, 150, 105, 0.3);
         }
+
+        /* NEW: Skeleton Loading Styles */
+        .skeleton-card {
+            background: white;
+            border-radius: 1rem;
+            padding: 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            border: 1px solid #f3f4f6;
+            overflow: hidden;
+        }
+
+        .skeleton-image {
+            height: 12rem;
+            background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+            background-size: 200% 100%;
+            border-radius: 0.75rem;
+            margin-bottom: 1rem;
+            animation: shimmer 1.5s infinite;
+        }
+
+        .skeleton-text {
+            height: 1rem;
+            background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+            background-size: 200% 100%;
+            border-radius: 0.25rem;
+            margin-bottom: 0.75rem;
+            animation: shimmer 1.5s infinite;
+        }
+
+        .skeleton-text.short {
+            width: 40%;
+        }
+
+        .skeleton-text.medium {
+            width: 70%;
+        }
+
+        .skeleton-price {
+            height: 1.5rem;
+            width: 40%;
+            background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+            background-size: 200% 100%;
+            border-radius: 0.25rem;
+            margin-bottom: 1rem;
+            animation: shimmer 1.5s infinite;
+        }
+
+        .skeleton-button {
+            height: 2.75rem;
+            background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+            background-size: 200% 100%;
+            border-radius: 0.75rem;
+            margin-bottom: 0.5rem;
+            animation: shimmer 1.5s infinite;
+        }
+
+        .skeleton-button.small {
+            height: 2rem;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: -200% 0;
+            }
+            100% {
+                background-position: 200% 0;
+            }
+        }
+
+        /* Product fade-in animation */
+        .product-fade-in {
+            animation: productFadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes productFadeIn {
+            0% {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            100% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 
     <!-- Google Font (Inter) -->
@@ -548,11 +632,8 @@
                 </div>
 
                 <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8" id="products-grid">
+                    <!-- Skeleton cards will be shown initially -->
                     <!-- Products will be loaded by JavaScript from Supabase -->
-                    <div class="text-center py-12">
-                        <i data-lucide="loader" class="w-12 h-12 text-sky-600 animate-spin mx-auto mb-4"></i>
-                        <p class="text-gray-600">Loading products...</p>
-                    </div>
                 </div>
                 
                 <div class="scroll-fade-in text-center mt-16">
@@ -707,6 +788,25 @@
                     cartCount.classList.add('hidden');
                 }
             }
+        }
+
+        // NEW: Create skeleton cards
+        function createSkeletonCards(count = 8) {
+            let skeletonHTML = '';
+            for (let i = 0; i < count; i++) {
+                skeletonHTML += `
+                <div class="skeleton-card">
+                    <div class="skeleton-image"></div>
+                    <div class="skeleton-text short"></div>
+                    <div class="skeleton-text medium"></div>
+                    <div class="skeleton-text"></div>
+                    <div class="skeleton-price"></div>
+                    <div class="skeleton-button"></div>
+                    <div class="skeleton-button small"></div>
+                </div>
+                `;
+            }
+            return skeletonHTML;
         }
 
         // Load products from Supabase with fallback
@@ -1021,13 +1121,14 @@
                 return;
             }
 
+            // Create product cards with fade-in animation
             productsGrid.innerHTML = products.map(product => {
                 const hasAmazonLink = product.amazon_link && product.amazon_link.trim() !== '';
                 const hasFlipkartLink = product.flipkart_link && product.flipkart_link.trim() !== '';
                 const hasAnyTrustedLink = hasAmazonLink || hasFlipkartLink;
 
                 return `
-                <div class="bg-white product-card-hover rounded-2xl p-6 shadow-xl border border-gray-100 hover:border-orange-200 scroll-fade-in">
+                <div class="bg-white product-card-hover rounded-2xl p-6 shadow-xl border border-gray-100 hover:border-orange-200 scroll-fade-in product-fade-in">
                     <div class="h-48 bg-gray-50 flex items-center justify-center p-4 rounded-xl mb-4 overflow-hidden">
                         <img src="${product.image || 'https://placehold.co/400x300/eeeeee/333333?text=Product+Image'}" 
                              alt="${product.title || 'Product'}" 
@@ -1408,6 +1509,11 @@
                 window.lucide.createIcons();
             }
             
+            // Show skeleton cards immediately
+            if (productsGrid) {
+                productsGrid.innerHTML = createSkeletonCards(8);
+            }
+            
             // Load products and settings from Supabase
             try {
                 products = await loadProductsFromSupabase();
@@ -1418,7 +1524,7 @@
                 siteSettings = {};
             }
             
-            // Render products
+            // Render products with fade-in effect
             renderProducts();
             
             // Initialize animations and effects
