@@ -496,7 +496,8 @@
         .content-fade-in {
             animation: contentFadeIn 0.6s ease-out forwards;
         }
-                /* Amazon-like Product Grid for Mobile */
+        
+        /* Amazon-like Product Grid for Mobile */
         .products-grid {
             display: grid;
             gap: 1rem;
@@ -510,6 +511,8 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             border: 1px solid #e5e7eb;
             transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
 
         .product-card:hover {
@@ -561,11 +564,33 @@
             color: #6b7280;
             line-height: 1.3;
             margin-bottom: 8px;
-            display: -webkit-box;
-            -webkit-line-clamp: 2;
-            -webkit-box-orient: vertical;
+            position: relative;
+        }
+
+        .product-description.collapsed {
+            max-height: 2.6em;
             overflow: hidden;
-            height: 2.6em;
+        }
+
+        .product-description.expanded {
+            max-height: none;
+        }
+
+        .read-more-btn {
+            background: none;
+            border: none;
+            color: #0ea5e9;
+            font-size: 0.7rem;
+            font-weight: 600;
+            cursor: pointer;
+            padding: 0;
+            margin-top: 4px;
+            display: inline-block;
+        }
+
+        .read-more-btn:hover {
+            color: #0284c7;
+            text-decoration: underline;
         }
 
         .product-price {
@@ -1140,6 +1165,35 @@
             }
         }
 
+        // NEW: Toggle Read More functionality
+        function toggleReadMore(productId) {
+            const description = document.getElementById(`description-${productId}`);
+            const button = document.getElementById(`read-more-btn-${productId}`);
+            
+            if (description && button) {
+                if (description.classList.contains('collapsed')) {
+                    description.classList.remove('collapsed');
+                    description.classList.add('expanded');
+                    button.textContent = 'Read Less';
+                } else {
+                    description.classList.remove('expanded');
+                    description.classList.add('collapsed');
+                    button.textContent = 'Read More';
+                }
+            }
+        }
+
+        // NEW: Check if description needs "Read More" button
+        function needsReadMore(descriptionElement) {
+            if (!descriptionElement) return false;
+            
+            // Check if the content exceeds 2 lines (approximately 2.6em height)
+            const lineHeight = parseFloat(getComputedStyle(descriptionElement).lineHeight);
+            const maxHeight = lineHeight * 2;
+            
+            return descriptionElement.scrollHeight > maxHeight;
+        }
+
         // NEW: Render actual content with fade-in animation
         function renderActualContent() {
             // Render Hero Section
@@ -1604,7 +1658,10 @@
                     
                     <div class="product-category">${product.category || 'General'}</div>
                     <h3 class="product-title">${product.title || 'Untitled Product'}</h3>
-                    <p class="product-description">${product.description || 'High-quality component for your projects.'}</p>
+                    <div class="product-description collapsed" id="description-${product.id}">
+                        ${product.description || 'High-quality component for your projects.'}
+                    </div>
+                    <button class="read-more-btn" id="read-more-btn-${product.id}" onclick="toggleReadMore('${product.id}')">Read More</button>
                     
                     <div class="product-price">${formatINR(product.price)}</div>
                     
@@ -1661,6 +1718,20 @@
             if (window.lucide && window.lucide.createIcons) {
                 window.lucide.createIcons();
             }
+
+            // Check which descriptions need "Read More" buttons
+            setTimeout(() => {
+                products.forEach(product => {
+                    const descriptionElement = document.getElementById(`description-${product.id}`);
+                    const buttonElement = document.getElementById(`read-more-btn-${product.id}`);
+                    
+                    if (descriptionElement && buttonElement) {
+                        if (!needsReadMore(descriptionElement)) {
+                            buttonElement.style.display = 'none';
+                        }
+                    }
+                });
+            }, 100);
         }
 
         // Helper function to safely update browse button
@@ -2018,6 +2089,7 @@
         window.closeCheckoutModal = closeCheckoutModal;
         window.proceedToWhatsApp = proceedToWhatsApp;
         window.toggleTrustedSites = toggleTrustedSites;
+        window.toggleReadMore = toggleReadMore;
         window.sendMail = sendMail;
     </script>
 </body>
