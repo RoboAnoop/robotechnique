@@ -1377,7 +1377,7 @@
                     ${product.description || 'High-quality component for your projects.'}
                 </div>
                 <button class="read-more-btn" id="read-more-btn-${product.id}" onclick="toggleReadMore('${product.id}')" style="display: none;">Read More</button>
-                
+    
                 <div class="product-price">${formatINR(product.price)}</div>
                 
                 <div class="product-actions">
@@ -1913,8 +1913,7 @@
                     <div class="product-description collapsed" id="description-${product.id}">
                         ${product.description || 'High-quality component for your projects.'}
                     </div>
-                    <button class="read-more-btn hidden" id="read-more-btn-${product.id}" onclick="toggleReadMore('${product.id}')">Read More</button>
-                    
+                       <button class="read-more-btn" id="read-more-btn-${product.id}" onclick="toggleReadMore('${product.id}')" style="display: none;">Read More</button>
                     <div class="product-price">${formatINR(product.price)}</div>
                     
                     <div class="product-actions">
