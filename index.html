@@ -556,12 +556,29 @@
             transform: scale(1.12);
             box-shadow: 0 3px 10px rgba(0, 0, 0, 0.25);
         }
+        
+        .footer-copyright {
+            text-align: center;
+            color: #6b7280;
+            font-size: 0.875rem;
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #f3f4f6;
+            width: 100%;
+        }
 
         @media (max-width: 640px) {
-            .footer-container {
+            .footer-main-content {
                 flex-direction: column;
-                text-align: center;
-                gap: 10px;
+                gap: 20px;
+            }
+            
+            .footer-links {
+                gap: 20px;
+            }
+            
+            .social-icons {
+                gap: 15px;
             }
         }
     </style>
@@ -826,6 +843,12 @@
                 <a href="https://www.facebook.com/YOURCLIENTPAGE" target="_blank" aria-label="Facebook">
                     <img src="https://cdn-icons-png.flaticon.com/512/733/733547.png" alt="Facebook" />
                 </a>
+            </div>
+        </div>
+            
+            <!-- Copyright section -->
+            <div class="footer-copyright">
+                <p>&copy; 2025 RoboTechnique. All rights reserved.</p>
             </div>
         </div>
     </footer>
