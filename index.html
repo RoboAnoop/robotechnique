@@ -5,6 +5,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
 
     <style>
+        /* All your existing CSS styles remain the same */
         /* Fix header/logo appearing faded behind 3D background */
         canvas, #three-background, #threejs-bg {
             z-index: 0 !important;
@@ -2222,8 +2223,47 @@
                 } catch (e) {
                     console.error('Error parsing localStorage data:', e);
                 }
-                return [];
+                // Return fallback sample products if everything fails
+                return getFallbackProducts();
             }
+        }
+
+        // Fallback products in case Supabase fails
+        function getFallbackProducts() {
+            return [
+                {
+                    id: '1',
+                    title: 'Arduino Uno R3',
+                    category: 'Microcontrollers',
+                    price: 850,
+                    description: 'The Arduino Uno is a microcontroller board based on the ATmega328P. It has 14 digital input/output pins, 6 analog inputs, a 16 MHz quartz crystal, a USB connection, a power jack, an ICSP header and a reset button.',
+                    image: 'https://placehold.co/400x300/eeeeee/333333?text=Arduino+Uno'
+                },
+                {
+                    id: '2',
+                    title: 'Raspberry Pi 4 Model B',
+                    category: 'Single Board Computers',
+                    price: 4500,
+                    description: 'The Raspberry Pi 4 Model B is the latest product in the popular Raspberry Pi range of computers. It offers ground-breaking increases in processor speed, multimedia performance, memory, and connectivity.',
+                    image: 'https://placehold.co/400x300/eeeeee/333333?text=Raspberry+Pi+4'
+                },
+                {
+                    id: '3',
+                    title: 'HC-SR04 Ultrasonic Sensor',
+                    category: 'Sensors',
+                    price: 120,
+                    description: 'The HC-SR04 ultrasonic sensor uses sonar to determine distance to an object like bats do. It offers excellent non-contact range detection with high accuracy and stable readings in an easy-to-use package.',
+                    image: 'https://placehold.co/400x300/eeeeee/333333?text=Ultrasonic+Sensor'
+                },
+                {
+                    id: '4',
+                    title: 'SG90 Micro Servo Motor',
+                    category: 'Motors',
+                    price: 180,
+                    description: 'The SG90 is a micro servo motor with metal gear. It can rotate approximately 180 degrees (90 in each direction), and works just like the standard kinds but smaller.',
+                    image: 'https://placehold.co/400x300/eeeeee/333333?text=Servo+Motor'
+                }
+            ];
         }
 
         // Load settings from Supabase with fallback
@@ -2500,19 +2540,10 @@
                 productsGrid.innerHTML = `
                     <div class="col-span-4 text-center py-12 content-fade-in">
                         <i data-lucide="package" class="w-16 h-16 text-gray-300 mx-auto mb-4"></i>
-                        <p class="text-gray-600 text-lg">Loading products...</p>
-                        <p class="text-gray-500 text-sm">Please wait while we load our products.</p>
+                        <p class="text-gray-600 text-lg">No products available</p>
+                        <p class="text-gray-500 text-sm">Please check back later or contact us for more information.</p>
                     </div>
                 `;
-                
-                // Try to re-render after a short delay if products are empty
-                if (products.length === 0 && !productsLoaded) {
-                    setTimeout(() => {
-                        if (products.length > 0) {
-                            renderProducts();
-                        }
-                    }, 1000);
-                }
                 
                 if (window.lucide && window.lucide.createIcons) {
                     window.lucide.createIcons();
@@ -2543,6 +2574,10 @@
                         <div class="product-description collapsed" id="description-${product.id}">
                             ${product.description || 'High-quality component for your projects.'}
                         </div>
+                        
+                        <button id="read-more-btn-${product.id}" class="read-more-btn hidden" onclick="toggleReadMore('${product.id}')">
+                            Read More
+                        </button>
                         
                         <div class="product-price">${formatINR(product.price)}</div>
                         
@@ -2606,8 +2641,14 @@
                 // Initialize scroll animations for new elements
                 initScrollAnimations();
                 
+                // Initialize read more buttons
+                setTimeout(initializeReadMoreButtons, 100);
+                
                 console.log(`Successfully rendered ${products.length} products`);
                 productsLoaded = true;
+                
+                // Update browse button with product count
+                updateBrowseButton();
                 
             } catch (error) {
                 console.error('Error rendering products:', error);
@@ -3158,7 +3199,7 @@
                 console.log(`Loaded ${products.length} products`);
             } catch (error) {
                 console.error('Error loading initial data:', error);
-                products = [];
+                products = getFallbackProducts();
                 siteSettings = {};
             }
             
@@ -3181,7 +3222,8 @@
             // Add a fallback: re-render products after 2 seconds if still empty
             setTimeout(() => {
                 if (products.length === 0 && !productsLoaded) {
-                    console.log('No products loaded, attempting re-render...');
+                    console.log('No products loaded, using fallback products...');
+                    products = getFallbackProducts();
                     renderProducts();
                 }
             }, 2000);
