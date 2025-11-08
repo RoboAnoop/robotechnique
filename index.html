@@ -1489,8 +1489,8 @@
             <div>
                 <h3 class="text-lg font-semibold mb-4 text-white">Stay Updated</h3>
                 <p class="text-gray-400 mb-4 text-sm">Subscribe to our newsletter for the latest updates on robotics and IoT components.</p>
-                <form class="space-y-3">
-                    <input type="email" placeholder="Your email address" class="w-full px-4 py-3 rounded-lg newsletter-input text-sm">
+                <form class="space-y-3" onsubmit="handleNewsletterSubscription(event)">
+                    <input type="email" placeholder="Your email address" class="w-full px-4 py-3 rounded-lg newsletter-input text-sm" required>
                     <button type="submit" class="w-full py-3 rounded-lg font-semibold newsletter-btn text-white text-sm">
                         Subscribe Now
                     </button>
@@ -1627,6 +1627,84 @@
             const mailtoLink = `mailto:${adminEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
             window.location.href = mailtoLink;
         }
+        
+        // Newsletter subscription handler
+function handleNewsletterSubscription(event) {
+    event.preventDefault(); // Prevent page refresh
+    
+    const form = event.target;
+    const emailInput = form.querySelector('input[type="email"]');
+    const email = emailInput.value.trim();
+    
+    if (!email) {
+        showNewsletterToast('Please enter your email address', 'error');
+        return;
+    }
+    
+    if (!isValidEmail(email)) {
+        showNewsletterToast('Please enter a valid email address', 'error');
+        return;
+    }
+    
+    // Simulate API call - replace with your actual newsletter service
+    console.log('Subscribing email:', email);
+    
+    // Show success message
+    showNewsletterToast('Thank you for subscribing!', 'success');
+    
+    // Clear the input
+    emailInput.value = '';
+}
+
+// Email validation helper
+function isValidEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+}
+
+// Newsletter toast notification
+function showNewsletterToast(message, type = 'success') {
+    const toast = document.createElement('div');
+    const bgColor = type === 'success' ? 'bg-green-600' : 'bg-red-600';
+    
+    toast.className = `flex items-center space-x-3 p-4 ${bgColor} text-white rounded-xl shadow-2xl border-b-4 ${type === 'success' ? 'border-green-300' : 'border-red-300'} opacity-0 translate-y-[-10px] transition-all duration-500 mb-3`;
+    toast.innerHTML = `
+        <i data-lucide="${type === 'success' ? 'check-circle' : 'alert-circle'}" class="w-5 h-5 ${type === 'success' ? 'text-green-300' : 'text-red-300'}"></i>
+        <span class="font-semibold">${message}</span>
+    `;
+    
+    // Get or create newsletter toast container
+    let container = document.getElementById("newsletter-toast-container");
+    if (!container) {
+        container = document.createElement("div");
+        container.id = "newsletter-toast-container";
+        container.className = "fixed top-32 right-6 z-[60] flex flex-col space-y-3";
+        document.body.appendChild(container);
+    }
+    
+    container.appendChild(toast);
+    
+    // Re-initialize Lucide icons
+    if (window.lucide && window.lucide.createIcons) {
+        window.lucide.createIcons();
+    }
+    
+    // Animate in
+    requestAnimationFrame(() => {
+        toast.classList.remove("opacity-0", "translate-y-[-10px]");
+        toast.classList.add("opacity-100", "translate-y-0");
+    });
+    
+    // Auto-hide after 4 seconds
+    setTimeout(() => {
+        toast.classList.add("opacity-0", "translate-y-[-10px]");
+        setTimeout(() => {
+            if (toast.parentNode) {
+                toast.remove();
+            }
+        }, 600);
+    }, 4000);
+}
 
         function cleanPrice(price) {
             if (typeof price === 'number') return price;
@@ -2777,6 +2855,7 @@ function initEventListeners() {
         window.openProductDetail = openProductDetail;
         window.closeProductDetail = closeProductDetail;
         window.buyNow = buyNow;
+        window.handleNewsletterSubscription = handleNewsletterSubscription;
     </script>
 </body>
 </html>
