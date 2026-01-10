@@ -1251,10 +1251,17 @@
     <link href="https://unpkg.com/aos@2.3.4/dist/aos.css" rel="stylesheet">
     <script src="https://unpkg.com/aos@2.3.4/dist/aos.js"></script>
     <script>
-        // Initialize AOS safely
-        if (typeof AOS !== 'undefined') {
-            AOS.init();
-        }
+        // Initialize AOS AFTER DOM is ready
+document.addEventListener("DOMContentLoaded", () => {
+    if (window.AOS) {
+        AOS.init({
+            once: true,
+            duration: 700,
+            easing: "ease-out-cubic"
+        });
+    }
+});
+
     </script>
     
     <meta charset="UTF-8">
@@ -2535,6 +2542,10 @@
                 console.warn('Products grid element not found');
                 return;
             }
+            if (window.AOS) {
+    AOS.refreshHard();
+}
+
 
             // Clear existing content safely
             productsGrid.innerHTML = '';
