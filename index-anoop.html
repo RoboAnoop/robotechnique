@@ -1270,7 +1270,25 @@
     
     <!-- Supabase JS -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <!-- Supabase JS -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+  // 🔑 Supabase config (ONLY once, at top)
+  const SUPABASE_URL = 'https://lpylrmsbmivlbonsytwv.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxweWxybXNibWl2bGJvbnN5dHd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwMTM4MDMsImV4cCI6MjA3NzU4OTgwM30.r7PxT7UQzkXPeZ2Dtuj8l6gRdnWLTUY-1JrPjv5WyCo';
+
+  // ✅ Create client immediately
+  const supabaseClient = supabase.createClient(
+    SUPABASE_URL,
+    SUPABASE_ANON_KEY
+  );
+
+  console.log("✅ Supabase initialized");
+</script>
 </head>
+
 <body>
     <!-- Three.js Background -->
     <div id="three-background" class="fixed top-0 left-0 w-full h-full z-0 pointer-events-none opacity-90" style="background-color: #f9fafb;"></div>
@@ -1634,9 +1652,6 @@
 </div>
 
     <script>
-        // Global Constants
-        const SUPABASE_URL = 'https://lpylrmsbmivlbonsytwv.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImxweWxybXNibWl2bGJvbnN5dHd2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjIwMTM4MDMsImV4cCI6MjA3NzU4OTgwM30.r7PxT7UQzkXPeZ2Dtuj8l6gRdnWLTUY-1JrPjv5WyCo';
         
         // State Management
         let cart = [];
@@ -1662,18 +1677,6 @@
         const contactHeader = document.getElementById('contact-header');
         const contactFormContainer = document.getElementById('contact-form-container');
         const browseButtonContainer = document.getElementById('browse-button-container');
-
-        // Initialize Supabase safely
-        let supabase;
-        try {
-            if (window.supabase && window.supabase.createClient) {
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-            } else {
-                console.warn('Supabase not available, using fallback data');
-            }
-        } catch (error) {
-            console.warn('Supabase initialization failed:', error);
-        }
 
         // Utility Functions
         function formatINR(amount) {
@@ -2200,7 +2203,7 @@
                     throw new Error('Supabase not available');
                 }
 
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('products')
                     .select('*')
                     .order('title', { ascending: true });
@@ -2273,7 +2276,7 @@
                     throw new Error('Supabase not available');
                 }
 
-                const { data, error } = await supabase
+                const { data, error } = await supabaseClient
                     .from('settings')
                     .select('*')
                     .eq('id', 1)
